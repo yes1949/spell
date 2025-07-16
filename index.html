@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>单词检查与复习</title>
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#007bff" />
+
+  <style>
+    /* 全局样式 */
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px 10px 40px;
+      background-color: #f4f4f4;
+    }
+    .container {
+      background-color: #fff;
+      padding: 25px 20px 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      width: 100%;
+      max-width: 380px; /* iPhone 12 Pro Max 竖屏宽度适配 */
+      box-sizing: border-box;
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 18px;
+    }
+    button, select, input {
+      margin: 10px 5px;
+      padding: 10px 15px;
+      font-size: 1.1rem;
+      border: none;
+      border-radius: 6px;
+      box-sizing: border-box;
+      width: auto;
+      min-width: 70px;
+      max-width: 100%;
+      user-select: none;
+    }
+    #importButton { background-color: #007bff; color: white; }
+    #groupSelector { background-color: #28a745; color: white; width: 100%; margin: 10px 0 20px; padding: 12px 10px; font-size: 1.2rem; }
+    #exportGroup { background-color: #17a2b8; color: white; }
+    #deleteGroup { background-color: #dc3545; color: white; }
+    #reviewButton { background-color: #ffc107; color: black; }
+    #keyboardToggle { background-color: #6c757d; color: white; font-size: 14px; min-width: 80px; }
+    #manageWords { background-color: #20c997; color: white; }
+    #fileInput { display: none; }
+    #definitionDisplay {
+      font-size: 1.4rem;
+      margin-bottom: 20px;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #333;
+      background-color: #e9ecef;
+      padding: 15px 20px;
+      border-radius: 6px;
+      word-break: break-word;
+      user-select: text;
+    }
+    #wordInput {
+      width: 100%;
+      padding: 14px 20px;
+      font-size: 1.3rem;
+      border: 2px solid #ccc;
+      border-radius: 6px;
+      box-sizing: border-box;
+      outline-offset: 0;
+    }
+    #wordInput:focus { border-color: #007bff; }
+    #feedback {
+      margin-top: 15px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      min-height: 24px;
+      user-select: none;
+    }
+    .correct { color: green; }
+    .wrong { color: red; }
+
+    /* 管理单词面板 */
+    #wordManager {
+      margin-top: 30px;
+      display: none;
+      text-align: left;
+    }
+    #wordManager h3 {
+      font-size: 1.4rem;
+      margin-bottom: 10px;
+    }
+    #wordManager div > input {
+      width: calc(50% - 15px);
+      margin-bottom: 10px;
+      padding: 12px 15px;
+      font-size: 1.2rem;
+      border-radius: 6px;
+      border: 1.8px solid #ccc;
+      box-sizing: border-box;
+    }
+    #wordManager div > button {
+      margin: 10px 5px 0 0;
+      padding: 10px 14px;
+      font-size: 1.1rem;
+      min-width: 70px;
+    }
+
+    /* 适配小屏幕，iPhone12pm 428px宽度 */
+    @media (max-width: 428px) {
+      body {
+        padding: 15px 8px 30px;
+      }
+      .container {
+        max-width: 100%;
+        padding: 20px 15px 25px;
+      }
+      h1 {
+        font-size: 1.6rem;
+      }
+      #definitionDisplay {
+        font-size: 1.2rem;
+        min-height: 50px;
+        padding: 12px 15px;
+      }
+      #wordInput {
+        font-size: 1.15rem;
+        padding: 12px 15px;
+      }
+      button, select, input {
+        font-size: 1rem;
+        padding: 8px 12px;
+      }
+      #wordManager div > input {
+        width: 100%;
+        margin-bottom: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+  <div id="versionDisplay" style="font-size:0.9rem; color:#666; margin-bottom:6px;">
+  版本: 1.1.0
+</div>
+    <h1>单词检查与复习</h1>
+    <input type="file" id="fileInput" accept=".txt" />
+    <button id="importButton">📥 导入TXT文件</button>
+    <select id="groupSelector"></select>
+
+    <div id="definitionDisplay">请导入文件或选择分组</div>
+    <input type="text" id="wordInput" placeholder="在此输入" autocorrect="off" autocapitalize="off" spellcheck="false" />
+    <div id="feedback"></div>
+
+    <button id="keyboardToggle">下一个</button>
+    <button id="reviewButton">📅 </button>
+    <button id="exportGroup">📤 </button>
+    <button id="deleteGroup">🗑️ </button>
+    <button id="manageWords">📘 </button>
+
+    <div id="wordManager">
+      <h3>管理当前单词</h3>
+      <div>
+        <input id="editWord" placeholder="英文" />
+        <input id="editDef" placeholder="中文" />
+        <button id="saveEdit">💾 保存</button>
+        <button id="deleteCurrent">🗑️ 删除</button>
+        <button id="nextWord">➡️ 下一个</button>
+        <button id="addNew">➕ 添加新词</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let vocabulary = [];
+    let currentGroup = '';
+    let currentManageIndex = 0;
+
+    const groupSelector = document.getElementById('groupSelector');
+    const definitionDisplay = document.getElementById('definitionDisplay');
+    const wordInput = document.getElementById('wordInput');
+    const feedback = document.getElementById('feedback');
+    const fileInput = document.getElementById('fileInput');
+    const importButton = document.getElementById('importButton');
+
+    // 点击导入按钮，触发文件选择
+    importButton.addEventListener('click', () => {
+      fileInput.value = ''; // 清空之前的选择，确保change事件触发
+      fileInput.click();
+    });
+
+    // 读取文件，解析内容，保存到本地
+    fileInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target.result;
+        const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+        const parsed = lines.map(line => {
+          const [word, def] = line.split(/,(.*)/);
+          return {
+            word: word ? word.trim().toLowerCase() : '',
+            definition: def ? def.trim() : '',
+            reviewLevel: 0,
+            lastReviewed: Date.now()
+          };
+        }).filter(item => item.word && item.definition);
+
+        if (parsed.length === 0) {
+          alert('文件格式错误或内容为空');
+          return;
+        }
+
+        const groupName = file.name.replace(/\.txt$/i, '');
+        localStorage.setItem('group_' + groupName, JSON.stringify(parsed));
+        alert(`已导入 ${parsed.length} 个单词，分组名为 "${groupName}"`);
+
+        loadGroupOptions(groupName);
+        loadGroup(groupName);
+      };
+      reader.readAsText(file);
+    });
+
+    // 加载分组选项
+    function loadGroupOptions(selected = '') {
+      groupSelector.innerHTML = '';
+      Object.keys(localStorage).filter(k => k.startsWith('group_')).forEach(key => {
+        const name = key.replace('group_', '');
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        if (name === selected) option.selected = true;
+        groupSelector.appendChild(option);
+      });
+      if (groupSelector.options.length === 0) {
+        definitionDisplay.textContent = '请导入文件或选择分组';
+        vocabulary = [];
+        currentGroup = '';
+      }
+    }
+
+    // 载入分组
+    function loadGroup(name) {
+      currentGroup = name;
+      const raw = localStorage.getItem('group_' + name);
+      vocabulary = raw ? JSON.parse(raw) : [];
+      if (vocabulary.length === 0) {
+        definitionDisplay.textContent = '当前分组无单词';
+        return;
+      }
+      displayRandomWord();
+    }
+
+    // 保存当前分组
+    function saveGroup() {
+      if (!currentGroup) return;
+      localStorage.setItem('group_' + currentGroup, JSON.stringify(vocabulary));
+    }
+
+    // 显示随机单词的释义，清空输入和反馈
+    function displayRandomWord() {
+      if (vocabulary.length === 0) {
+        definitionDisplay.textContent = '当前分组无单词';
+        return;
+      }
+      const index = Math.floor(Math.random() * vocabulary.length);
+      definitionDisplay.textContent = vocabulary[index].definition;
+      wordInput.value = '';
+      feedback.textContent = '';
+      currentManageIndex = index;
+    }
+
+    // 单词输入检测
+    wordInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      if (vocabulary.length === 0) {
+        feedback.textContent = '请先导入或选择分组';
+        feedback.className = 'wrong';
+        return;
+      }
+      const input = wordInput.value.trim().toLowerCase();
+      const correctWord = vocabulary[currentManageIndex].word;
+      if (input === correctWord) {
+        feedback.textContent = '正确！';
+        feedback.className = 'correct';
+        vocabulary[currentManageIndex].reviewLevel = Math.min((vocabulary[currentManageIndex].reviewLevel || 0) + 1, 5);
+        vocabulary[currentManageIndex].lastReviewed = Date.now();
+        saveGroup();
+        setTimeout(displayRandomWord, 600);
+      } else {
+        feedback.textContent = `错误，正确答案是：${correctWord}`;
+        feedback.className = 'wrong';
+        wordInput.value = '';
+        vocabulary[currentManageIndex].reviewLevel = 0;
+        // 加入错题组
+        const wrongKey = 'group_错题组';
+        let wrongList = JSON.parse(localStorage.getItem(wrongKey) || '[]');
+        if (!wrongList.some(item => item.word === correctWord)) {
+          wrongList.push(vocabulary[currentManageIndex]);
+          localStorage.setItem(wrongKey, JSON.stringify(wrongList));
+          if (!Array.from(groupSelector.options).some(opt => opt.value === '错题组')) {
+            const opt = document.createElement('option');
+            opt.value = '错题组';
+            opt.textContent = '错题组';
+            groupSelector.appendChild(opt);
+          }
+        }
+        saveGroup();
+      }
+    });
+
+    // 下一个按钮
+    document.getElementById('keyboardToggle').addEventListener('click', () => {
+      displayRandomWord();
+      wordInput.focus();
+    });
+
+    // 选择分组
+    groupSelector.addEventListener('change', () => {
+      loadGroup(groupSelector.value);
+    });
+
+    // 导出当前分组
+    document.getElementById('exportGroup').addEventListener('click', () => {
+      if (!currentGroup) {
+        alert('请先选择分组');
+        return;
+      }
+      const data = vocabulary.map(i => `${i.word},${i.definition}`).join('\n');
+      if (!data) {
+        alert('当前分组为空');
+        return;
+      }
+      const blob = new Blob([data], {type: 'text/plain'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${currentGroup}.txt`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    // 删除当前分组
+    document.getElementById('deleteGroup').addEventListener('click', () => {
+      if (!currentGroup) {
+        alert('请先选择分组');
+        return;
+      }
+      if (confirm(`确认删除分组 "${currentGroup}" 吗？此操作不可恢复！`)) {
+        localStorage.removeItem('group_' + currentGroup);
+        loadGroupOptions();
+        if (groupSelector.options.length > 0) {
+          loadGroup(groupSelector.options[0].value);
+        } else {
+          vocabulary = [];
+          currentGroup = '';
+          definitionDisplay.textContent = '请导入文件或选择分组';
+        }
+      }
+    });
+
+    // 管理单词面板相关
+    const wordManager = document.getElementById('wordManager');
+    document.getElementById('manageWords').addEventListener('click', () => {
+      if (!currentGroup) {
+        alert('请先选择分组');
+        return;
+      }
+      if (vocabulary.length === 0) {
+        alert('当前分组无单词，无法管理');
+        return;
+      }
+      wordManager.style.display = wordManager.style.display === 'none' ? 'block' : 'none';
+      showCurrentWord();
+    });
+
+    function showCurrentWord() {
+      if (vocabulary.length === 0) {
+        document.getElementById('editWord').value = '';
+        document.getElementById('editDef').value = '';
+        return;
+      }
+      const item = vocabulary[currentManageIndex];
+      document.getElementById('editWord').value = item.word || '';
+      document.getElementById('editDef').value = item.definition || '';
+    }
+
+    document.getElementById('saveEdit').addEventListener('click', () => {
+      const w = document.getElementById('editWord').value.trim();
+      const d = document.getElementById('editDef').value.trim();
+      if (!w || !d) {
+        alert('英文和中文不能为空');
+        return;
+      }
+      vocabulary[currentManageIndex] = {
+        word: w.toLowerCase(),
+        definition: d,
+        reviewLevel: vocabulary[currentManageIndex].reviewLevel || 0,
+        lastReviewed: vocabulary[currentManageIndex].lastReviewed || Date.now()
+      };
+      saveGroup();
+      alert('已保存');
+      showCurrentWord();
+    });
+
+    document.getElementById('deleteCurrent').addEventListener('click', () => {
+      if (!confirm('确认删除该单词？')) return;
+      vocabulary.splice(currentManageIndex, 1);
+      if (currentManageIndex >= vocabulary.length) currentManageIndex = vocabulary.length - 1;
+      saveGroup();
+      alert('已删除');
+      showCurrentWord();
+    });
+
+    document.getElementById('nextWord').addEventListener('click', () => {
+      if (vocabulary.length === 0) return;
+      currentManageIndex = (currentManageIndex + 1) % vocabulary.length;
+      showCurrentWord();
+    });
+
+    document.getElementById('addNew').addEventListener('click', () => {
+      const w = document.getElementById('editWord').value.trim();
+      const d = document.getElementById('editDef').value.trim();
+      if (!w || !d) {
+        alert('请填写完整信息');
+        return;
+      }
+      if (vocabulary.some(v => v.word === w.toLowerCase())) {
+        alert('单词已存在');
+        return;
+      }
+      vocabulary.push({
+        word: w.toLowerCase(),
+        definition: d,
+        reviewLevel: 0,
+        lastReviewed: Date.now()
+      });
+      saveGroup();
+      alert('已添加新单词');
+      currentManageIndex = vocabulary.length - 1;
+      showCurrentWord();
+    });
+
+    // 页面初始化加载分组
+    function init() {
+      loadGroupOptions();
+      if (groupSelector.options.length > 0) {
+        loadGroup(groupSelector.options[0].value);
+      }
+    }
+    init();
+
+    // PWA Service Worker 注册及自动更新提示
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./service-worker.js').then(registration => {
+        registration.addEventListener('updatefound', () => {
+          const newSW = registration.installing;
+          newSW.addEventListener('statechange', () => {
+            if (newSW.state === 'installed') {
+              if (navigator.serviceWorker.controller) {
+                console.log('检测到新版本，页面将自动刷新');
+                window.location.reload();
+              } else {
+                console.log('Service Worker 首次安装，缓存已就绪');
+              }
+            }
+          });
+        });
+      }).catch(err => {
+        console.log('Service Worker 注册失败:', err);
+      });
+    }
+  </script>
+</body>
+</html>
