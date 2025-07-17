@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>主页</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#007bff" />
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      box-sizing: border-box;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .fixed-container {
+      background-color: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      width: 100%;
+      max-width: 380px;
+      position: relative;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #versionDisplay {
+      font-size: 0.8rem;
+      color: #666;
+      margin-bottom: 5px;
+      align-self: flex-start;
+    }
+
+    button, select, input[type="text"] {
+      margin: 8px 4px;
+      padding: 9px 12px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 5px;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    button {
+      cursor: pointer;
+      background-color: #007bff;
+      color: white;
+      min-width: 48px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      line-height: 1;
+    }
+
+    #importButton { background-color: #007bff; }
+    #reviewButton { background-color: #ffc107; color: black; }
+    #exportGroup { background-color: #17a2b8; }
+    #deleteGroup { background-color: #dc3545; }
+
+    #groupSelector {
+      background-color: #28a745;
+      color: white;
+      min-width: 90px;
+      max-width: 150px;
+      height: 40px;
+      font-size: 1rem;
+      border-radius: 5px;
+      padding: 0 6px;
+    }
+
+    #definitionDisplay {
+      font-size: 1.3rem;
+      margin: 15px 0 0;
+      min-height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #333;
+      background-color: #e9ecef;
+      padding: 12px 15px;
+      border-radius: 5px;
+      word-break: break-word;
+      user-select: text;
+      width: 100%;
+      max-width: 350px;
+    }
+
+    #wordInput {
+      width: 100%;
+      padding: 12px 15px;
+      font-size: 1.2rem;
+      border: 2px solid #ccc;
+      border-radius: 5px;
+      box-sizing: border-box;
+      margin-top: 10px;
+    }
+
+    #wordInput:focus { border-color: #007bff; }
+
+    #feedback {
+      margin-top: 10px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      min-height: 20px;
+      user-select: none;
+      height: 24px;
+    }
+
+    .correct { color: green; }
+    .wrong { color: red; }
+
+    .button-group {
+      display: flex;
+      width: 100%;
+      max-width: 380px;
+      justify-content: center;
+      flex-wrap: nowrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    #nextWordGroup {
+      margin-top: 10px;
+      justify-content: center;
+      width: 100%;
+      max-width: 380px;
+      display: flex;
+      gap: 10px;
+    }
+
+    #nextWord, #deleteWord {
+      flex: 1;
+      height: 48px;
+      font-size: 1.5rem;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      min-width: 0;
+    }
+
+    @media (max-width: 428px) {
+      .fixed-container {
+        max-width: 95vw;
+        padding: 12px;
+      }
+
+      button, select, input[type="text"] {
+        margin: 6px 3px;
+        padding: 8px 10px;
+        font-size: 0.95rem;
+      }
+
+      #groupSelector {
+        min-width: 80px;
+        max-width: 120px;
+        height: 36px;
+        font-size: 0.9rem;
+      }
+
+      #definitionDisplay {
+        font-size: 1.1rem;
+        min-height: 45px;
+        padding: 10px 12px;
+      }
+
+      #wordInput {
+        font-size: 1.05rem;
+        padding: 10px 12px;
+      }
+
+      #feedback {
+        margin-top: 8px;
+        font-size: 1rem;
+        min-height: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="fixed-container">
+    <div id="versionDisplay">版本: 1.4.0</div>
+    <input type="file" id="fileInput" accept=".txt" style="display:none;" />
+    <div class="button-group" id="topButtonsGroup">
+      <button id="importButton" title="导入">📥</button>
+      <select id="groupSelector" title="选择分组"></select>
+      <button id="reviewButton" title="复习">📅</button>
+      <button id="exportGroup" title="导出">📤</button>
+      <button id="deleteGroup" title="删除">🗑️</button>
+    </div>
+
+    <div id="definitionDisplay">请导入文件或选择分组</div>
+    <input type="text" id="wordInput" placeholder="在此输入" autocorrect="off" autocapitalize="off" spellcheck="false" />
+    <div id="feedback"></div>
+
+    <div class="button-group" id="nextWordGroup">
+      <button id="deleteWord" title="删除当前单词" style="background-color: #007bff;">🗑️</button>
+	  <button id="nextWord" title="下一个" style="background-color: #28a745;">➡️</button>
+    </div>
+
+    <div style="margin-top:8px; font-size:0.9rem; color:#666;" id="progressDisplay"></div>
+  </div>
+
+<script>
+  let wordGroups = {};
+  let currentGroup = "";
+  let currentWords = [];
+  let currentIndex = 0;
+  let errorWords = [];
+  const defaultErrorGroupName = "默认组";
+
+  function saveToStorage() {
+    const data = {
+      wordGroups,
+      currentGroup,
+      currentIndex,
+      errorWords
+    };
+    localStorage.setItem("wordData", JSON.stringify(data));
+  }
+
+  function loadFromStorage() {
+    const data = localStorage.getItem("wordData");
+    if (data) {
+      const parsed = JSON.parse(data);
+      wordGroups = parsed.wordGroups || {};
+      currentGroup = parsed.currentGroup || "";
+      currentIndex = parsed.currentIndex || 0;
+      errorWords = parsed.errorWords || [];
+    }
+  }
+
+  function updateGroupSelector() {
+    const selector = document.getElementById("groupSelector");
+    selector.innerHTML = '<option value="">选择分组</option>';
+    for (let group in wordGroups) {
+      const option = document.createElement("option");
+      option.value = group;
+      option.textContent = group;
+      selector.appendChild(option);
+    }
+    if(currentGroup) selector.value = currentGroup;
+  }
+
+  function loadWords(group, preserveIndex = false) {
+    if (!wordGroups[group]) return;
+    currentGroup = group;
+    currentWords = shuffle([...wordGroups[group]]);
+    if(!preserveIndex) currentIndex = 0;
+    showNextWord();
+    updateProgressDisplay();
+  }
+
+  function showNextWord() {
+    const defBox = document.getElementById("definitionDisplay");
+    const feedback = document.getElementById("feedback");
+    const input = document.getElementById("wordInput");
+    updateProgressDisplay();
+
+    if (currentIndex >= currentWords.length) {
+      if (errorWords.length > 0) {
+        alert("错词复习开始");
+        currentWords = shuffle([...errorWords]);
+        currentIndex = 0;
+        errorWords = [];
+        updateProgressDisplay();
+      } else {
+        defBox.textContent = "完成！";
+        feedback.textContent = "";
+        saveToStorage();
+        return;
+      }
+    }
+
+    const current = currentWords[currentIndex];
+    defBox.textContent = current.def;
+    input.value = "";
+    input.focus();
+    feedback.textContent = "";
+    saveToStorage();
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      let j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function updateProgressDisplay() {
+    const disp = document.getElementById("progressDisplay");
+    if(!currentWords.length) {
+      disp.textContent = "";
+      return;
+    }
+    disp.textContent = `进度: ${Math.min(currentIndex+1, currentWords.length)} / ${currentWords.length}`;
+  }
+
+  document.getElementById("importButton").onclick = () => {
+    document.getElementById("fileInput").click();
+  };
+
+  document.getElementById("fileInput").addEventListener("change", function () {
+    const file = this.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const lines = e.target.result.split("\n").map(line => line.trim()).filter(Boolean);
+      const wordList = [];
+      for (let line of lines) {
+        const [word, def] = line.split(",");
+        if (word && def) wordList.push({ word: word.trim(), def: def.trim() });
+      }
+      if(wordList.length === 0) {
+        alert("文件格式错误，需为“单词,释义”格式");
+        return;
+      }
+      const name = file.name.replace(/\.[^/.]+$/, "");
+      wordGroups[name] = wordList;
+      saveToStorage();
+      updateGroupSelector();
+      loadWords(name);
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById("groupSelector").addEventListener("change", function () {
+    const group = this.value;
+    if (group) loadWords(group);
+  });
+
+  document.getElementById("wordInput").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      const input = this.value.trim();
+      const current = currentWords[currentIndex];
+      const feedback = document.getElementById("feedback");
+
+      if (input.toLowerCase() === current.word.toLowerCase()) {
+        feedback.textContent = "✔ 正确";
+        feedback.className = "correct";
+        currentIndex++;
+        showNextWord();
+      } else {
+        feedback.textContent = `✘ 错误：${current.word}`;
+        feedback.className = "wrong";
+        if (!wordGroups[defaultErrorGroupName]) wordGroups[defaultErrorGroupName] = [];
+        if (!wordGroups[defaultErrorGroupName].some(w => w.word === current.word)) {
+          wordGroups[defaultErrorGroupName].push(current);
+          saveToStorage();
+          updateGroupSelector();
+          errorWords.push(current);
+        }
+        wordInput.value = "";
+      }
+    }
+  });
+
+  document.getElementById("nextWord").onclick = () => {
+    if(currentIndex < currentWords.length -1) {
+      currentIndex++;
+      showNextWord();
+    } else {
+      if(errorWords.length > 0) {
+        alert("错词复习开始");
+        currentWords = shuffle([...errorWords]);
+        currentIndex = 0;
+        errorWords = [];
+        showNextWord();
+      } else {
+        alert("已完成全部单词！");
+      }
+    }
+  };
+
+  document.getElementById("deleteWord").addEventListener("click", () => {
+    const currentGroupName = document.getElementById("groupSelector").value;
+    const current = currentWords[currentIndex];
+    if (!current || !currentGroupName || !wordGroups[currentGroupName]) return;
+
+    wordGroups[currentGroupName] = wordGroups[currentGroupName].filter(word => word.word !== current.word);
+    saveToStorage();
+    currentWords = wordGroups[currentGroupName];
+    if (currentIndex >= currentWords.length) currentIndex = 0;
+    showNextWord();
+  });
+
+  document.getElementById("reviewButton").onclick = () => {
+    if (!currentGroup || errorWords.length === 0) {
+      alert("暂无错词");
+      return;
+    }
+    currentWords = shuffle([...errorWords]);
+    currentIndex = 0;
+    errorWords = [];
+    showNextWord();
+  };
+
+  document.getElementById("deleteGroup").onclick = () => {
+    if (confirm("确定删除当前分组？")) {
+      delete wordGroups[currentGroup];
+      saveToStorage();
+      updateGroupSelector();
+      currentGroup = "";
+      currentWords = [];
+      currentIndex = 0;
+      document.getElementById("definitionDisplay").textContent = "请导入文件或选择分组";
+      document.getElementById("feedback").textContent = "";
+      document.getElementById("progressDisplay").textContent = "";
+    }
+  };
+
+  document.getElementById("exportGroup").onclick = () => {
+    if (!currentGroup || !wordGroups[currentGroup]) return;
+    const text = wordGroups[currentGroup].map(w => `${w.word},${w.def}`).join("\n");
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${currentGroup}.txt`;
+    a.click();
+  };
+
+  loadFromStorage();
+  updateGroupSelector();
+  if(currentGroup) loadWords(currentGroup);
+
+  if(window.visualViewport){
+    const fixedContainer = document.querySelector('.fixed-container');
+    window.visualViewport.addEventListener('resize', ()=>{ fixedContainer.style.top = '0px'; });
+    window.visualViewport.addEventListener('scroll', ()=>{ window.scrollTo(0,0); });
+  }
+</script>
+</body>
+</html>
