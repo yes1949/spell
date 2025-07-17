@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>主页</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#007bff" />
+  <style>
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      box-sizing: border-box;
+    }
+    .fixed-container {
+      background-color: #fff;
+      padding: 15px 15px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      width: 100%;
+      max-width: 380px;
+      box-sizing: border-box;
+      position: fixed;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+    }
+    #versionDisplay {
+      font-size:0.8rem; color:#666; margin-bottom:5px;
+    }
+    button, select, input {
+      margin: 8px 4px;
+      padding: 9px 12px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 5px;
+      box-sizing: border-box;
+      width: auto;
+      min-width: 60px;
+      max-width: 100%;
+      user-select: none;
+    }
+    #importButton { background-color: #007bff; color: white; }
+    #groupSelector { background-color: #28a745; color: white; width: 100%; margin: 8px 0 15px; padding: 10px 8px; font-size: 1.1rem; }
+    #exportGroup { background-color: #17a2b8; color: white; }
+    #deleteGroup { background-color: #dc3545; color: white; }
+    #reviewButton { background-color: #ffc107; color: black; }
+    #keyboardToggle { background-color: #6c757d; color: white; font-size: 13px; min-width: 70px; }
+    #manageWords { background-color: #20c997; color: white; }
+    #fileInput { display: none; }
+    #definitionDisplay {
+      font-size: 1.3rem;
+      margin-bottom: 15px;
+      min-height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #333;
+      background-color: #e9ecef;
+      padding: 12px 15px;
+      border-radius: 5px;
+      word-break: break-word;
+      user-select: text;
+    }
+    #wordInput {
+      width: 100%;
+      padding: 12px 15px;
+      font-size: 1.2rem;
+      border: 2px solid #ccc;
+      border-radius: 5px;
+      box-sizing: border-box;
+      outline-offset: 0;
+    }
+    #wordInput:focus { border-color: #007bff; }
+    #feedback {
+      margin-top: 10px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      min-height: 20px;
+      user-select: none;
+    }
+    .correct { color: green; }
+    .wrong { color: red; }
+    .button-group {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 100%;
+      margin-top: 10px;
+    }
+    .main-content {
+      margin-top: 180px;
+      padding: 15px 10px 30px;
+      height: calc(100vh - 180px);
+      overflow-y: auto;
+      box-sizing: border-box;
+      background-color: #f4f4f4;
+      width: 100%;
+      max-width: 380px;
+      position: relative;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    #wordManager {
+      margin-top: 20px;
+      display: none;
+      text-align: left;
+      width: 100%;
+    }
+    #wordManager h3 {
+      font-size: 1.3rem;
+      margin-bottom: 8px;
+    }
+    #wordManager div {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+    }
+    #wordManager div > input {
+      width: calc(50% - 6px);
+      margin-bottom: 8px;
+      padding: 10px 12px;
+      font-size: 1.1rem;
+    }
+    #wordManager div > button {
+      margin: 8px 4px 0 0;
+      padding: 9px 12px;
+      font-size: 1rem;
+      min-width: 60px;
+      flex-grow: 1;
+    }
+    @media (max-width: 428px) {
+      .fixed-container {
+        padding: 12px 12px 18px;
+      }
+      button, select, input {
+        margin: 6px 3px;
+        padding: 8px 10px;
+        font-size: 0.95rem;
+      }
+      #groupSelector { margin: 6px 0 12px; padding: 9px 7px; font-size: 1rem; }
+      #keyboardToggle { font-size: 12px; min-width: 65px; }
+      #definitionDisplay {
+        font-size: 1.1rem;
+        min-height: 45px;
+        padding: 10px 12px;
+      }
+      #wordInput {
+        font-size: 1.05rem;
+        padding: 10px 12px;
+      }
+      #feedback {
+        margin-top: 8px;
+        font-size: 1rem;
+        min-height: 18px;
+      }
+      .main-content {
+        margin-top: 150px;
+        height: calc(100vh - 150px);
+      }
+      #wordManager div > input {
+        width: 100%;
+        margin-right: 0;
+      }
+      #wordManager div > button {
+        width: calc(50% - 4px);
+        flex-grow: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="fixed-container">
+    <div id="versionDisplay">版本: 1.3.0</div>
+    <input type="file" id="fileInput" accept=".txt" />
+    <button id="importButton">📥 导入TXT文件</button>
+    <select id="groupSelector"></select>
+    <div id="definitionDisplay">请导入文件或选择分组</div>
+    <input type="text" id="wordInput" placeholder="在此输入" autocorrect="off" autocapitalize="off" spellcheck="false" />
+    <div id="feedback"></div>
+    <div class="button-group">
+      <button id="keyboardToggle">➡️ </button>
+      <button id="reviewButton">📅 </button>
+      <button id="exportGroup">📤 </button>
+      <button id="deleteGroup">🗑️ </button>
+      <button id="manageWords">📘 </button>
+    </div>
+  </div>
+  <div class="main-content">
+    <div id="wordManager">
+      <h3>管理当前单词</h3>
+      <div>
+        <input id="editWord" placeholder="英文" />
+        <input id="editDef" placeholder="中文" />
+        <button id="saveEdit">💾 保存</button>
+        <button id="deleteCurrent">🗑️ 删除</button>
+        <button id="nextWord">➡️ 下一个</button>
+        <button id="addNew">➕ 添加新词</button>
+      </div>
+    </div>
+  </div>
+<script>
+let wordGroups = {};
+let currentGroup = "";
+let currentWords = [];
+let currentIndex = 0;
+let errorWords = [];
+
+function saveToStorage() {
+  localStorage.setItem("wordGroups", JSON.stringify(wordGroups));
+}
+
+function loadFromStorage() {
+  const data = localStorage.getItem("wordGroups");
+  if (data) wordGroups = JSON.parse(data);
+}
+
+function updateGroupSelector() {
+  const selector = document.getElementById("groupSelector");
+  selector.innerHTML = '<option value="">选择分组</option>';
+  for (let group in wordGroups) {
+    const option = document.createElement("option");
+    option.value = group;
+    option.textContent = group;
+    selector.appendChild(option);
+  }
+}
+
+function loadWords(group) {
+  if (!wordGroups[group]) return;
+  currentGroup = group;
+  currentWords = shuffle([...wordGroups[group]]);
+  currentIndex = 0;
+  errorWords = [];
+  showNextWord();
+}
+
+function showNextWord() {
+  const defBox = document.getElementById("definitionDisplay");
+  const feedback = document.getElementById("feedback");
+  const input = document.getElementById("wordInput");
+
+  if (currentIndex >= currentWords.length) {
+    if (errorWords.length > 0) {
+      alert("错词复习开始");
+      currentWords = shuffle([...errorWords]);
+      currentIndex = 0;
+      errorWords = [];
+    } else {
+      defBox.textContent = "完成！";
+      feedback.textContent = "";
+      return;
+    }
+  }
+
+  const current = currentWords[currentIndex];
+  defBox.textContent = current.def;
+  input.value = "";
+  input.focus();
+  feedback.textContent = "";
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    let j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+document.getElementById("importButton").onclick = () => {
+  document.getElementById("fileInput").click();
+};
+
+document.getElementById("fileInput").addEventListener("change", function () {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const lines = e.target.result.split("\n").map((line) => line.trim()).filter(Boolean);
+    const wordList = [];
+    for (let line of lines) {
+      const [word, def] = line.split(",");
+      if (word && def) wordList.push({ word: word.trim(), def: def.trim() });
+    }
+    const groupName = prompt("请输入分组名称：");
+    if (groupName) {
+      wordGroups[groupName] = wordList;
+      saveToStorage();
+      updateGroupSelector();
+      document.getElementById("groupSelector").value = groupName;
+      loadWords(groupName);
+    }
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById("groupSelector").addEventListener("change", function () {
+  const group = this.value;
+  if (group) loadWords(group);
+});
+
+document.getElementById("wordInput").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") {
+    const input = this.value.trim();
+    const current = currentWords[currentIndex];
+    const feedback = document.getElementById("feedback");
+
+    if (input.toLowerCase() === current.word.toLowerCase()) {
+      feedback.textContent = "✔ 正确";
+      feedback.className = "correct";
+    } else {
+      feedback.textContent = `✘ 错误：${current.word}`;
+      feedback.className = "wrong";
+      errorWords.push(current);
+    }
+
+    currentIndex++;
+    setTimeout(showNextWord, 600);
+  }
+});
+
+document.getElementById("reviewButton").onclick = () => {
+  if (!currentGroup || errorWords.length === 0) {
+    alert("暂无错词");
+    return;
+  }
+  currentWords = shuffle([...errorWords]);
+  currentIndex = 0;
+  errorWords = [];
+  showNextWord();
+};
+
+document.getElementById("deleteGroup").onclick = () => {
+  if (confirm("确定删除当前分组？")) {
+    delete wordGroups[currentGroup];
+    saveToStorage();
+    updateGroupSelector();
+    currentGroup = "";
+    currentWords = [];
+    currentIndex = 0;
+    document.getElementById("definitionDisplay").textContent = "请导入文件或选择分组";
+    document.getElementById("feedback").textContent = "";
+  }
+};
+
+document.getElementById("exportGroup").onclick = () => {
+  if (!currentGroup || !wordGroups[currentGroup]) return;
+  const text = wordGroups[currentGroup].map((w) => `${w.word},${w.def}`).join("\n");
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${currentGroup}.txt`;
+  a.click();
+};
+
+document.getElementById("keyboardToggle").onclick = () => {
+  const input = document.getElementById("wordInput");
+  if (document.activeElement === input) {
+    input.blur();
+  } else {
+    input.focus();
+  }
+};
+
+document.getElementById("manageWords").onclick = () => {
+  const wm = document.getElementById("wordManager");
+  wm.style.display = wm.style.display === "block" ? "none" : "block";
+  showWordEditor();
+};
+
+function showWordEditor() {
+  const current = currentWords[currentIndex] || {};
+  document.getElementById("editWord").value = current.word || "";
+  document.getElementById("editDef").value = current.def || "";
+}
+
+document.getElementById("saveEdit").onclick = () => {
+  const word = document.getElementById("editWord").value.trim();
+  const def = document.getElementById("editDef").value.trim();
+  if (word && def) {
+    currentWords[currentIndex] = { word, def };
+    wordGroups[currentGroup] = currentWords;
+    saveToStorage();
+    alert("保存成功");
+    showWordEditor();
+  }
+};
+
+document.getElementById("deleteCurrent").onclick = () => {
+  if (confirm("确定删除此单词？")) {
+    currentWords.splice(currentIndex, 1);
+    wordGroups[currentGroup] = currentWords;
+    saveToStorage();
+    showNextWord();
+  }
+};
+
+document.getElementById("nextWord").onclick = () => {
+  currentIndex++;
+  showNextWord();
+  showWordEditor();
+};
+
+document.getElementById("addNew").onclick = () => {
+  const word = document.getElementById("editWord").value.trim();
+  const def = document.getElementById("editDef").value.trim();
+  if (word && def) {
+    currentWords.push({ word, def });
+    wordGroups[currentGroup] = currentWords;
+    saveToStorage();
+    alert("添加成功");
+    showWordEditor();
+  }
+};
+
+loadFromStorage();
+updateGroupSelector();
+
+// ✅ 防止键盘弹出推起 fixed 元素
+if (window.visualViewport) {
+  const fixedContainer = document.querySelector('.fixed-container');
+  window.visualViewport.addEventListener('resize', () => {
+    fixedContainer.style.top = '0px';
+  });
+  window.visualViewport.addEventListener('scroll', () => {
+    window.scrollTo(0, 0);
+  });
+}
+</script>
+</body>
+</html>
