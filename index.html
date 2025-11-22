@@ -193,7 +193,7 @@
 </head>
 <body>
   <div class="fixed-container">
-    <div id="versionDisplay">版本: 1.6.0</div>
+    <div id="versionDisplay">版本: 1.7.0 (抽牌模式)</div>
     <input type="file" id="fileInput" accept=".txt" style="display:none;" />
     <div class="button-group" id="topButtonsGroup">
       <button id="importButton" title="导入">📥</button>
@@ -209,37 +209,46 @@
 
     <div class="button-group" id="nextWordGroup">
       <button id="deleteWord" title="删除当前单词" style="background-color: #007bff;">🗑️</button>
-	  <button id="nextWord" title="下一个" style="background-color: #28a745;">➡️</button>
+      <button id="nextWord" title="下一个" style="background-color: #28a745;">➡️</button>
     </div>
 
     <div style="margin-top:8px; font-size:0.9rem; color:#666;" id="progressDisplay"></div>
   </div>
 
 <script>
-  let wordGroups = {};
-  let currentGroup = "";
-  let currentWords = [];
-  let currentIndex = 0;
-  let errorWords = [];
+  // 核心数据结构
+  let wordGroups = {};          // 所有的单词库（只读，除非删除/导入）
+  let currentGroup = "";        // 当前选择的分组名
+  let remainingWords = [];      // 【关键变量】当前剩余待拼的单词池
+  let currentActiveWord = null; // 【关键变量】当前屏幕上显示的这个单词对象
+  let totalSessionWords = 0;    // 本轮总数（用于计算进度）
+  
+  let errorWords = [];          // 错词本缓存
   const defaultErrorGroupName = "默认组";
 
+  // 1. 保存状态：保存所有核心变量
   function saveToStorage() {
     const data = {
       wordGroups,
       currentGroup,
-      currentIndex,
+      remainingWords,
+      currentActiveWord,
+      totalSessionWords,
       errorWords
     };
     localStorage.setItem("wordData", JSON.stringify(data));
   }
 
+  // 2. 读取状态
   function loadFromStorage() {
     const data = localStorage.getItem("wordData");
     if (data) {
       const parsed = JSON.parse(data);
       wordGroups = parsed.wordGroups || {};
       currentGroup = parsed.currentGroup || "";
-      currentIndex = parsed.currentIndex || 0;
+      remainingWords = parsed.remainingWords || [];
+      currentActiveWord = parsed.currentActiveWord || null;
+      totalSessionWords = parsed.totalSessionWords || 0;
       errorWords = parsed.errorWords || [];
     }
   }
@@ -256,60 +265,96 @@
     if(currentGroup) selector.value = currentGroup;
   }
 
-  function loadWords(group, preserveIndex = false) {
-    if (!wordGroups[group]) return;
-    currentGroup = group;
-    currentWords = shuffle([...wordGroups[group]]);
-    if(!preserveIndex) currentIndex = 0;
-    showNextWord();
-    updateProgressDisplay();
+  // 3. 开始新的一轮（重置模式）
+  function startNewSession(groupName) {
+    if (!wordGroups[groupName]) return;
+    
+    currentGroup = groupName;
+    // 复制一份到剩余池
+    remainingWords = [...wordGroups[groupName]]; 
+    totalSessionWords = remainingWords.length;
+    currentActiveWord = null; // 清空当前
+    
+    pickNextWord(); // 抽取第一个
   }
 
-  function showNextWord() {
+  // 4. 【核心逻辑】从池子里抽取一个单词
+  function pickNextWord() {
     const defBox = document.getElementById("definitionDisplay");
     const feedback = document.getElementById("feedback");
     const input = document.getElementById("wordInput");
-    updateProgressDisplay();
 
-    if (currentIndex >= currentWords.length) {
+    // 如果池子空了
+    if (remainingWords.length === 0) {
+      // 检查是否还有当前正在显示的（如果是刚答对被设为null了，那就是真没了）
+      // 如果没有正在显示的单词，说明彻底结束
+      currentActiveWord = null; 
+      updateProgressDisplay();
+      
       if (errorWords.length > 0) {
-        alert("错词复习开始");
-        currentWords = shuffle([...errorWords]);
-        currentIndex = 0;
-        errorWords = [];
-        updateProgressDisplay();
-      } else {
-        defBox.textContent = "完成！";
-        feedback.textContent = "";
-        saveToStorage();
-        return;
+         if(confirm("本组已完成。要立即复习错词吗？")) {
+             // 进入复习模式：把错词当成新的一轮
+             remainingWords = [...errorWords];
+             totalSessionWords = remainingWords.length;
+             errorWords = []; // 清空错词本准备下一轮
+             pickNextWord();
+             return;
+         }
       }
+      defBox.textContent = "✅ 全部完成！";
+      input.value = "";
+      feedback.textContent = "";
+      saveToStorage();
+      return;
     }
 
-    const current = currentWords[currentIndex];
-    defBox.textContent = current.def;
+    // 随机抽取
+    const randomIndex = Math.floor(Math.random() * remainingWords.length);
+    // 取出并从数组中移除 (Splice returns an array, take [0])
+    currentActiveWord = remainingWords.splice(randomIndex, 1)[0];
+    
+    saveToStorage(); // 立即保存，防止刷新丢失进度
+    renderUI();
+  }
+
+  // 5. 渲染界面（根据 currentActiveWord）
+  function renderUI() {
+    const defBox = document.getElementById("definitionDisplay");
+    const feedback = document.getElementById("feedback");
+    const input = document.getElementById("wordInput");
+    
+    updateProgressDisplay();
+
+    if (currentActiveWord) {
+      defBox.textContent = currentActiveWord.def;
+    } else if (remainingWords.length === 0 && totalSessionWords > 0) {
+       // 防止边界情况
+       defBox.textContent = "✅ 完成";
+    } else {
+       defBox.textContent = "请选择分组";
+    }
+
     input.value = "";
     input.focus();
     feedback.textContent = "";
-    saveToStorage();
-  }
-
-  function shuffle(arr) {
-    for (let i = arr.length - 1; i > 0; i--) {
-      let j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
   }
 
   function updateProgressDisplay() {
     const disp = document.getElementById("progressDisplay");
-    if(!currentWords.length) {
+    if (totalSessionWords === 0) {
       disp.textContent = "";
       return;
     }
-    disp.textContent = `进度: ${Math.min(currentIndex+1, currentWords.length)} / ${currentWords.length}`;
+    // 进度计算： 总数 - 剩余数。
+    // 如果当前屏幕上有一个词，说明这个词还没“完成”，但在 pickNextWord 里它已经被移出 remainingWords 了。
+    // 所以逻辑上：已完成 = 总数 - 剩余池 - (当前是否显示 ? 1 : 0) ? 不，用户体验上，看到第几个就是第几个。
+    // 显示为： 第 X 个 / 共 Y 个
+    // 当前是第 (总 - 剩余) 个
+    const currentCount = totalSessionWords - remainingWords.length;
+    disp.textContent = `进度: ${currentCount} / ${totalSessionWords}`;
   }
+
+  // --- 事件监听 ---
 
   document.getElementById("importButton").onclick = () => {
     document.getElementById("fileInput").click();
@@ -323,104 +368,109 @@
       const lines = e.target.result.split("\n").map(line => line.trim()).filter(Boolean);
       const wordList = [];
       for (let line of lines) {
-        const [word, def] = line.split(",");
-        if (word && def) wordList.push({ word: word.trim(), def: def.trim() });
+        const parts = line.split(/[,，]/); // 兼容中英文逗号
+        if (parts.length >= 2) {
+             const word = parts[0].trim();
+             const def = parts.slice(1).join(",").trim();
+             if (word && def) wordList.push({ word, def });
+        }
       }
       if(wordList.length === 0) {
-        alert("文件格式错误，需为“单词,释义”格式");
+        alert("格式错误或文件为空");
         return;
       }
       const name = file.name.replace(/\.[^/.]+$/, "");
       wordGroups[name] = wordList;
       saveToStorage();
       updateGroupSelector();
-      loadWords(name);
+      // 导入后自动开始
+      startNewSession(name);
     };
     reader.readAsText(file);
   });
 
+  // 切换分组 = 开始新的一轮
   document.getElementById("groupSelector").addEventListener("change", function () {
     const group = this.value;
-    if (group) loadWords(group);
+    if (group) startNewSession(group);
   });
 
+  // 输入判断
   document.getElementById("wordInput").addEventListener("keydown", function (e) {
     if (e.key === "Enter") {
+      if (!currentActiveWord) return;
+      
       const input = this.value.trim();
-      const current = currentWords[currentIndex];
       const feedback = document.getElementById("feedback");
 
-      if (input.toLowerCase() === current.word.toLowerCase()) {
+      if (input.toLowerCase() === currentActiveWord.word.toLowerCase()) {
         feedback.textContent = "✔ 正确";
         feedback.className = "correct";
-        currentIndex++;
-        showNextWord();
+        
+        // 稍微延时一点点让用户看到对号（可选），或者直接下一个
+        // 这里选择直接下一个，保持流畅
+        pickNextWord();
       } else {
-        feedback.textContent = `✘ 错误：${current.word}`;
+        feedback.textContent = `✘ 错误：${currentActiveWord.word}`;
         feedback.className = "wrong";
+        
+        // 记录错词到默认组
         if (!wordGroups[defaultErrorGroupName]) wordGroups[defaultErrorGroupName] = [];
-        if (!wordGroups[defaultErrorGroupName].some(w => w.word === current.word)) {
-          wordGroups[defaultErrorGroupName].push(current);
+        if (!wordGroups[defaultErrorGroupName].some(w => w.word === currentActiveWord.word)) {
+          wordGroups[defaultErrorGroupName].push(currentActiveWord);
+          if(!errorWords.some(w => w.word === currentActiveWord.word)) {
+             errorWords.push(currentActiveWord);
+          }
           saveToStorage();
           updateGroupSelector();
-          errorWords.push(current);
         }
-        wordInput.value = "";
+        this.value = ""; // 清空输入框让用户重输
       }
     }
   });
 
+  // 下一个按钮（跳过）
   document.getElementById("nextWord").onclick = () => {
-    if(currentIndex < currentWords.length -1) {
-      currentIndex++;
-      showNextWord();
-    } else {
-      if(errorWords.length > 0) {
-        alert("错词复习开始");
-        currentWords = shuffle([...errorWords]);
-        currentIndex = 0;
-        errorWords = [];
-        showNextWord();
-      } else {
-        alert("已完成全部单词！");
-      }
-    }
+    if (!currentActiveWord && remainingWords.length === 0) return;
+    pickNextWord();
   };
 
+  // 删除单词
   document.getElementById("deleteWord").addEventListener("click", () => {
-    const currentGroupName = document.getElementById("groupSelector").value;
-    const current = currentWords[currentIndex];
-    if (!current || !currentGroupName || !wordGroups[currentGroupName]) return;
+    if (!currentActiveWord || !currentGroup) return;
 
-    wordGroups[currentGroupName] = wordGroups[currentGroupName].filter(word => word.word !== current.word);
-    saveToStorage();
-    currentWords = wordGroups[currentGroupName];
-    if (currentIndex >= currentWords.length) currentIndex = 0;
-    showNextWord();
+    // 1. 从主库中永久删除
+    if(wordGroups[currentGroup]) {
+        wordGroups[currentGroup] = wordGroups[currentGroup].filter(w => w.word !== currentActiveWord.word);
+    }
+    
+    // 2. 无需从 remainingWords 删除，因为它已经被移出去了并在 currentActiveWord 里
+    // 3. 直接抽取下一个，覆盖当前的 currentActiveWord
+    pickNextWord();
   });
 
+  // 复习错词
   document.getElementById("reviewButton").onclick = () => {
-    if (!currentGroup || errorWords.length === 0) {
+    if (!wordGroups[defaultErrorGroupName] || wordGroups[defaultErrorGroupName].length === 0) {
       alert("暂无错词");
       return;
     }
-    currentWords = shuffle([...errorWords]);
-    currentIndex = 0;
-    errorWords = [];
-    showNextWord();
+    // 复习也是一种 startNewSession
+    startNewSession(defaultErrorGroupName);
+    updateGroupSelector();
   };
 
   document.getElementById("deleteGroup").onclick = () => {
+    if (!currentGroup) return;
     if (confirm("确定删除当前分组？")) {
       delete wordGroups[currentGroup];
+      currentGroup = "";
+      remainingWords = [];
+      currentActiveWord = null;
+      totalSessionWords = 0;
       saveToStorage();
       updateGroupSelector();
-      currentGroup = "";
-      currentWords = [];
-      currentIndex = 0;
-      document.getElementById("definitionDisplay").textContent = "请导入文件或选择分组";
-      document.getElementById("feedback").textContent = "";
-      document.getElementById("progressDisplay").textContent = "";
+      renderUI();
     }
   };
 
@@ -434,10 +484,20 @@
     a.click();
   };
 
+  // --- 初始化逻辑 ---
   loadFromStorage();
   updateGroupSelector();
-  if(currentGroup) loadWords(currentGroup);
 
+  // 恢复现场逻辑：
+  // 如果有正在显示的词，或者池子里还有词，就恢复界面
+  if (currentActiveWord || (remainingWords && remainingWords.length > 0)) {
+     renderUI();
+  } else {
+     // 闲置状态
+     document.getElementById("definitionDisplay").textContent = "请导入文件或选择分组";
+  }
+
+  // 视口调整
   if(window.visualViewport){
     const fixedContainer = document.querySelector('.fixed-container');
     window.visualViewport.addEventListener('resize', ()=>{ fixedContainer.style.top = '0px'; });
@@ -446,5 +506,3 @@
 </script>
 </body>
 </html>
-
-
