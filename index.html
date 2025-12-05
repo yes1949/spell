@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Final V2.2</title>
+  <title>记忆原型 Final V2.5</title>
   <style>
     :root {
       --primary: #5ac8fa;
@@ -142,6 +142,14 @@
       margin-bottom: 15px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.05);
       flex-shrink: 0;
+      transition: all 0.3s ease; /* Add transition for color change */
+    }
+
+    /* New class for Retry Mode (Red Text) */
+    .prompt-area.retry-mode {
+        color: #d32f2f;
+        background-color: #ffebee; /* Light red background */
+        border: 1px solid #ffcdd2;
     }
 
     .input-wrapper {
@@ -326,7 +334,7 @@
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary)">🚀 穿越</button>
       </div>
       
-      <div class="version-display">Version: 2.2</div>
+      <div class="version-display">Version: 2.9</div>
 
       <input type="file" id="fileInput" accept=".txt">
     </div>
@@ -360,6 +368,10 @@
   let isReviewMode = false;  
   let activeWord = null;     
   let selectedErrorWord = null;
+
+  // NEW in V2.5: Session Retry Variables
+  let sessionMistakes = [];
+  let isRetryMode = false;
 
   const pages = ['drill', 'input', 'errors'];
   let currentPageIndex = 0;
@@ -401,7 +413,7 @@
 
   // --- 数据持久化 ---
   function loadData() {
-    const data = localStorage.getItem("myCardsData_Final_V2.1");
+    const data = localStorage.getItem("myCardsData_Final_V2.5");
     if (data) {
       const parsed = JSON.parse(data);
       wordLibrary = parsed.wordLibrary || {};
@@ -417,6 +429,10 @@
       currentGroupName = parsed.currentGroupName || "";
       isReviewMode = parsed.isReviewMode || false;
       activeWord = parsed.activeWord || null;
+
+      // Reset retry state on reload (optional but safer)
+      sessionMistakes = [];
+      isRetryMode = false;
     }
     checkDailyReviewInit();
   }
@@ -426,7 +442,7 @@
         wordLibrary, wordLibrary_copy, errorBook, 
         currentQueue, currentGroupName, isReviewMode, activeWord 
     };
-    localStorage.setItem("myCardsData_Final_V2.1", JSON.stringify(data));
+    localStorage.setItem("myCardsData_Final_V2.5", JSON.stringify(data));
     updateReviewBadge(); 
   }
 
@@ -468,6 +484,9 @@
       saveData();
       
       isReviewMode = false;
+      isRetryMode = false;
+      sessionMistakes = [];
+      
       currentGroupName = name;
       currentQueue = [...wordLibrary[name]];
       
@@ -483,6 +502,7 @@
     const todayKey = getTodayKey();
     const copyKey = todayKey + '_copy';
 
+    // 1. ErrorBook Update
     const existing = errorBook.find(w => w.word === wordObj.word);
     if (existing) {
         existing.lastReview = now;
@@ -495,6 +515,7 @@
         });
     }
 
+    // 2. Review Storage Update
     let reviewList = JSON.parse(localStorage.getItem(todayKey) || '[]');
     let reviewCopy = JSON.parse(localStorage.getItem(copyKey) || '[]');
 
@@ -504,15 +525,26 @@
     localStorage.setItem(todayKey, JSON.stringify(reviewList));
     localStorage.setItem(copyKey, JSON.stringify(reviewCopy));
 
+    // 3. Sync memory if needed
     if (isReviewMode) {
         if (!currentQueue.some(w => w.word === wordObj.word)) {
             currentQueue.push(wordObj);
+        }
+    } 
+    // NEW: Capture mistake for session retry (only if NOT in review/retry mode)
+    else if (!isRetryMode) {
+        if (!sessionMistakes.some(w => w.word === wordObj.word)) {
+            sessionMistakes.push(wordObj);
         }
     }
   }
 
   // --- 逻辑：复习按钮 ---
   document.getElementById("btnSmartReview").onclick = () => {
+    // Clear session variables
+    sessionMistakes = [];
+    isRetryMode = false;
+
     const todayKey = getTodayKey();
     const copyKey = todayKey + '_copy';
     
@@ -555,18 +587,21 @@
          item.lockDay = todayStr;
     }
 
+    // Remove from current queue (memory)
+    currentQueue = currentQueue.filter(w => w.word !== wordStr);
+
     if (isReviewMode) {
-        currentQueue = currentQueue.filter(w => w.word !== wordStr);
         const todayKey = getTodayKey();
         let list = JSON.parse(localStorage.getItem(todayKey) || '[]');
         list = list.filter(w => w.word !== wordStr);
         localStorage.setItem(todayKey, JSON.stringify(list));
-    } else {
-        currentQueue = currentQueue.filter(w => w.word !== wordStr);
+    } else if (!isRetryMode) {
+        // Normal mode: remove from library
         if (currentGroupName && wordLibrary[currentGroupName]) {
             wordLibrary[currentGroupName] = wordLibrary[currentGroupName].filter(w => w.word !== wordStr);
         }
     }
+    // Note: In retry mode, we don't delete from library again (already deleted in normal pass)
   }
 
   // --- UI: 进度条 ---
@@ -581,6 +616,9 @@
         const total = copy.length;
         const done = total - currentQueue.length; 
         disp.textContent = `${done + 1} / ${total}`;
+    } else if (isRetryMode) {
+        // Retry mode progress
+        disp.textContent = `错题重练: ${currentQueue.length}`;
     } else {
         if (!currentGroupName || !wordLibrary_copy[currentGroupName]) {
             disp.textContent = "0 / 0"; return;
@@ -597,20 +635,58 @@
     const input = document.getElementById("wordInput");
 
     if (currentQueue.length === 0) {
+      // Logic 1: Trigger Retry Mode
+      if (!isReviewMode && !isRetryMode && sessionMistakes.length > 0) {
+          isRetryMode = true;
+          currentQueue = [...sessionMistakes];
+          sessionMistakes = []; // Clear to prevent loops
+          pickNextWord(); // Start retry immediately
+          return;
+      }
+
+      // Really finished
       activeWord = null;
-      defDisplay.textContent = "🎉 完成！";
+      defDisplay.textContent = isRetryMode ? "⭕️ 错题重练完成！" : "🎉 完成！";
+      
+      // Reset UI style
+      if (defDisplay.classList.contains('retry-mode')) {
+          defDisplay.classList.remove('retry-mode');
+      }
+      
       input.value = ""; input.disabled = true;
+      isRetryMode = false; // Reset mode
+      
       updateProgressBar();
       saveData();
       return;
     }
+
     input.disabled = false;
     const idx = Math.floor(Math.random() * currentQueue.length);
     activeWord = currentQueue[idx];
     input.value = ""; input.focus();
-    if (activeWord) defDisplay.textContent = activeWord.def;
-    updateProgressBar();
+    
+    renderDrillUI();
     saveData();
+  }
+
+  function renderDrillUI() {
+    const defDisplay = document.getElementById("definitionDisplay");
+    
+    if (activeWord) {
+        defDisplay.textContent = activeWord.def;
+        // Red Text for Retry Mode
+        if (isRetryMode) {
+            defDisplay.classList.add("retry-mode");
+        } else {
+            defDisplay.classList.remove("retry-mode");
+        }
+    } else if (!currentGroupName) {
+        defDisplay.textContent = "请选择分组";
+        defDisplay.classList.remove("retry-mode");
+    }
+    
+    updateProgressBar();
   }
 
   // --- 交互: 回车 ---
@@ -623,7 +699,7 @@
         handleCorrect(activeWord.word);
         pickNextWord();
       } else {
-        // --- 立即清空输入框 (Updated V2.2 Logic) ---
+        // Clear immediately
         e.target.value = ""; 
 
         const originalDef = activeWord.def;
@@ -636,15 +712,10 @@
         saveData();
         updateProgressBar();
 
-        // 延迟恢复释义 (不阻塞输入)
         setTimeout(() => {
-            // 简单校验：防止跳太快把新词的释义给覆盖了
-            // 但因为是单线程，且用户大概率还在看，直接恢复通常体验最好
-            if (defDisplay.textContent.includes(correctWord)) {
-                defDisplay.textContent = originalDef;
-                defDisplay.style.color = "#1c1c1e";
-            }
-        }, 1200); // 1.2秒后恢复释义
+            defDisplay.textContent = originalDef;
+            defDisplay.style.color = ""; // Remove inline style to let class take over
+        }, 1200);
       }
     }
   });
@@ -671,6 +742,7 @@
           delete wordLibrary[currentGroupName];
           delete wordLibrary_copy[currentGroupName];
           currentGroupName = ""; currentQueue = []; activeWord = null;
+          sessionMistakes = []; isRetryMode = false;
           saveData(); updateGroupDropdown(); 
           document.getElementById("definitionDisplay").textContent = "请选择分组";
           updateProgressBar();
@@ -695,11 +767,25 @@
       }).filter(x => x);
   }
 
-  // --- 交互: 选组 ---
+  // --- 交互: 选组 (Logic 2: Auto-Refill) ---
   document.getElementById("groupSelectorSelect").addEventListener("change", (e) => {
     const name = e.target.value; if (!name) return;
+    
+    // Reset states
     isReviewMode = false;
+    isRetryMode = false;
+    sessionMistakes = [];
+
     currentGroupName = name;
+
+    // Check if empty, refill from backup
+    if (wordLibrary[name] && wordLibrary[name].length === 0) {
+        if (wordLibrary_copy[name] && wordLibrary_copy[name].length > 0) {
+            wordLibrary[name] = JSON.parse(JSON.stringify(wordLibrary_copy[name]));
+            saveData();
+        }
+    }
+
     currentQueue = [...wordLibrary[name]];
     updateGroupDropdown(); activeWord = null; pickNextWord();
   });
