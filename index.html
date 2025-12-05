@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Compact V2</title>
+  <title>记忆原型 Compact V3</title>
   <style>
     :root {
       --primary: #5ac8fa;
@@ -103,7 +103,7 @@
       display: flex;
       justify-content: space-between;
       gap: 8px;
-      margin-bottom: 15px;
+      margin-bottom: 10px; /* 更紧凑 */
     }
     
     .pill-btn {
@@ -131,29 +131,27 @@
       background: #e1f5fe;
       color: #1c1c1e;
       border-radius: 16px;
-      padding: 15px;
-      min-height: 80px;
-      max-height: 120px; 
+      padding: 12px 15px; /* 减小内边距 */
+      min-height: 60px;   /* 减小高度 */
+      max-height: 100px; 
       display: flex;
       align-items: center;
       justify-content: center;
       text-align: center;
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 600;
-      margin-bottom: 20px;
+      margin-bottom: 15px; /* 减小下边距 */
       box-shadow: 0 2px 6px rgba(0,0,0,0.05);
       flex-shrink: 0;
     }
 
-    /* 输入区调整：去除flex:1，不再占满剩余空间 */
     .input-wrapper {
       width: 100%;
       text-align: center;
-      /* flex: 1; <--- 删除了这行 */
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
-      margin-bottom: 0; /* 下边距交给按钮的 margin-top */
+      margin-bottom: 0;
     }
 
     #wordInput {
@@ -162,36 +160,34 @@
       border-bottom: 2px solid #c7c7cc;
       font-size: 28px;
       text-align: center;
-      padding: 8px 0;
+      padding: 4px 0;
       background: transparent;
       outline: none;
       color: #000;
       border-radius: 0;
       font-family: monospace;
-      margin-top: 10px;
+      margin-top: 5px;
     }
     #wordInput:focus { border-bottom-color: var(--active-blue); }
 
+    /* 反馈区：保留位置但通常留空，除非错误 */
     #feedbackDisplay {
         height: 20px; 
         font-size: 15px; 
         text-align: center; 
-        margin-top: 10px;
+        margin-top: 8px;
         font-weight: 700;
     }
-    .correct { color: #34c759; }
     .wrong { color: #ff3b30; }
 
-    /* 底部按钮调整：不再置底，而是紧跟输入区 */
+    /* 底部按钮：紧跟输入区 */
     .bottom-actions {
-  display: flex;
-  justify-content: space-between;
-  
-  gap: 15px; /* <--- 新增这行：让两个按钮之间有空隙 */
-  
-  margin-top: 30px;
-  padding-bottom: 10px;
-}
+      display: flex;
+      justify-content: space-between;
+      gap: 15px;
+      margin-top: 20px; /* 提上去 */
+      padding-bottom: 10px;
+    }
     
     .bottom-btn {
       flex: 1;
@@ -210,7 +206,9 @@
     }
 
     #rawInput {
-      flex: 1;
+      /* 占页面约 1/3 */
+      height: 33vh; 
+      flex: none; /* 不自动伸缩 */
       width: 100%;
       background: #ffffff;
       border: 1px solid #e5e5ea;
@@ -238,11 +236,18 @@
       width: 100%;
       display: flex;
       flex-wrap: wrap;
-      align-content: flex-start;
+      align-content: flex-end; /* 优先显示在底部 */
       gap: 10px;
       justify-content: center;
       overflow: hidden;
-      padding-bottom: 10px;
+      padding-bottom: 20px;
+    }
+
+    /* 为了让内容看起来是"中间偏下"，我们可以加一个空的div把内容挤下去，
+       或者使用 align-content: center/flex-end 配合 max-height。
+       这里使用 align-content: center 视觉上比较平衡 */
+    #bubbleContainer {
+        align-content: center; 
     }
 
     .bubble {
@@ -269,7 +274,7 @@
       justify-content: space-between;
       gap: 15px;
       padding-bottom: 10px;
-      margin-top: auto; /* 第三页保留置底，因为气泡是不定高度的 */
+      margin-top: auto; 
     }
 
     #fileInput { display: none; }
@@ -341,11 +346,11 @@
   </div>
 
 <script>
-  // --- 数据核心 ---
-  const REVIEW_INTERVALS = [0,1, 2, 4, 7, 15, 30, 60, 90, 120];
+  // --- Data ---
+  const REVIEW_INTERVALS = [0, 1, 2, 4, 7, 15, 30, 60, 90, 120];
   let wordLibrary = {}; 
   let errorBook = []; 
-  let currentQueue = [];
+  let currentQueue = []; // This is the active non-persistent queue for spelling
   
   let currentGroupName = ""; 
   let activeWord = null;     
@@ -356,7 +361,7 @@
   let currentPageIndex = 0;
 
   function loadData() {
-    const data = localStorage.getItem("myCardsData_Compact_V2");
+    const data = localStorage.getItem("myCardsData_Compact_V3");
     if (data) {
       const parsed = JSON.parse(data);
       wordLibrary = parsed.wordLibrary || {};
@@ -365,6 +370,7 @@
         if (!w.lastReview) w.lastReview = Date.now();
         if (typeof w.stage === 'undefined') w.stage = 0;
       });
+      // Try to restore session if exists
       currentQueue = parsed.currentQueue || [];
       currentGroupName = parsed.currentGroupName || "";
       isReviewMode = parsed.isReviewMode || false;
@@ -374,11 +380,11 @@
 
   function saveData() {
     const data = { wordLibrary, errorBook, currentQueue, currentGroupName, isReviewMode, activeWord };
-    localStorage.setItem("myCardsData_Compact_V2", JSON.stringify(data));
+    localStorage.setItem("myCardsData_Compact_V3", JSON.stringify(data));
     updateReviewCount();
   }
 
-  // --- 切换页面逻辑 ---
+  // --- Navigation ---
   function switchPage(pageName) {
     const idx = pages.indexOf(pageName);
     if(idx !== -1) currentPageIndex = idx;
@@ -398,7 +404,7 @@
     }
   }
 
-  // --- 滑动切换逻辑 ---
+  // --- Swipe Logic ---
   let touchStartX = 0;
   let touchStartY = 0;
 
@@ -416,50 +422,56 @@
   function handleSwipe(startX, endX, startY, endY) {
     const diffX = endX - startX;
     const diffY = endY - startY;
-
-    if (Math.abs(diffX) > Math.abs(diffY)) { // 水平滑动
-      if (Math.abs(diffX) > 50) { // 阈值
-        if (diffX < 0) {
-          // 左滑 -> 下一页
-          if (currentPageIndex < pages.length - 1) {
-            switchPage(pages[currentPageIndex + 1]);
-          }
-        } else {
-          // 右滑 -> 上一页
-          if (currentPageIndex > 0) {
-            switchPage(pages[currentPageIndex - 1]);
-          }
+    // Horizontal swipe detection
+    if (Math.abs(diffX) > Math.abs(diffY)) { 
+      if (Math.abs(diffX) > 50) { 
+        if (diffX < 0) { // Swipe Left -> Next Page
+          if (currentPageIndex < pages.length - 1) switchPage(pages[currentPageIndex + 1]);
+        } else { // Swipe Right -> Prev Page
+          if (currentPageIndex > 0) switchPage(pages[currentPageIndex - 1]);
         }
       }
     }
   }
 
-  // --- Page 1 逻辑 ---
+  // --- Page 1 Logic ---
   function updateGroupDropdown() {
     const selector = document.getElementById("groupSelectorSelect");
     const label = document.getElementById("groupBtnLabel");
     selector.innerHTML = '<option value="">--</option>';
+    
     for (let name in wordLibrary) {
       const option = document.createElement("option");
       option.value = name;
       option.textContent = name;
       selector.appendChild(option);
     }
-    if (!isReviewMode && currentGroupName && wordLibrary[currentGroupName]) {
-      selector.value = currentGroupName;
-      label.textContent = currentGroupName.length > 5 ? currentGroupName.substring(0,4)+'..' : currentGroupName;
+
+    // Logic for Label Display
+    if (isReviewMode) {
+        label.textContent = "Smart Review";
+        selector.value = ""; // Clear selection visually in dropdown
+    } else if (currentGroupName && wordLibrary[currentGroupName]) {
+        selector.value = currentGroupName;
+        label.textContent = currentGroupName.length > 5 ? currentGroupName.substring(0,4)+'..' : currentGroupName;
     } else {
-      label.textContent = "选择分组";
+        label.textContent = "Select Group";
     }
   }
 
+  // Normal Group Selection
   document.getElementById("groupSelectorSelect").addEventListener("change", (e) => {
     const name = e.target.value;
     if (!name) return;
+    
+    // Switch to Normal Mode
     isReviewMode = false;
     currentGroupName = name;
-    updateGroupDropdown();
+    
+    // Copy words to Non-Persistent Queue
     currentQueue = [...wordLibrary[name]];
+    
+    updateGroupDropdown();
     activeWord = null;
     pickNextWord();
   });
@@ -480,23 +492,33 @@
     }
   }
 
+  // Review Button Logic (Modified)
   document.getElementById("btnSmartReview").onclick = () => {
     const now = Date.now();
+    // Calculate Due Words
     const dueWords = errorBook.filter(w => {
         const stage = w.stage || 0;
         const intervalDays = stage < REVIEW_INTERVALS.length ? REVIEW_INTERVALS[stage] : 120;
         return (now - w.lastReview) >= (intervalDays * 86400000);
     });
+    
     if (dueWords.length === 0) {
-        alert("暂无复习任务");
+        alert("No words to review today.");
         return;
     }
+    
+    // Switch Mode
     isReviewMode = true;
-    currentGroupName = "复习中";
-    document.getElementById("groupBtnLabel").textContent = "复习中";
-    currentQueue = [...dueWords];
+    currentGroupName = "Smart Review"; // Virtual Group Name
+    
+    // Create Non-Persistent Queue for Review
+    currentQueue = [...dueWords]; 
+    
+    updateGroupDropdown();
     activeWord = null;
     pickNextWord();
+    
+    alert(`Review Started: ${dueWords.length} words.`);
   };
 
   function pickNextWord() {
@@ -506,7 +528,7 @@
 
     if (currentQueue.length === 0) {
       activeWord = null;
-      defDisplay.textContent = "🎉 完成！";
+      defDisplay.textContent = "🎉 Done!";
       input.value = "";
       input.disabled = true;
       feedback.textContent = "";
@@ -529,7 +551,7 @@
     if (activeWord) {
       defDisplay.textContent = activeWord.def;
     } else if (!currentGroupName) {
-        defDisplay.textContent = "请选择分组";
+        defDisplay.textContent = "Select Group";
     }
   }
 
@@ -540,17 +562,25 @@
       const feedback = document.getElementById("feedbackDisplay");
 
       if (val.toLowerCase() === activeWord.word.toLowerCase()) {
-        feedback.textContent = "✔ 正确";
-        feedback.className = "correct";
+        // Correct Logic
+        feedback.textContent = ""; // No text needed
+        feedback.className = "";
+        
+        // Remove from current session queue
         currentQueue = currentQueue.filter(w => w.word !== activeWord.word);
         
+        // Update Stats in ErrorBook if applicable
         const errIdx = errorBook.findIndex(w => w.word === activeWord.word);
         if (errIdx !== -1) {
              errorBook[errIdx].lastReview = Date.now();
              errorBook[errIdx].stage = (errorBook[errIdx].stage || 0) + 1;
         }
-        setTimeout(pickNextWord, 400);
+        
+        // Immediate Next
+        pickNextWord();
+        
       } else {
+        // Wrong Logic
         feedback.textContent = `✘ ${activeWord.word}`;
         feedback.className = "wrong";
         e.target.value = "";
@@ -577,14 +607,16 @@
     if (!activeWord) return;
     const wordToDelete = activeWord.word;
 
+    // 1. Remove from current session
     currentQueue = currentQueue.filter(w => w.word !== wordToDelete);
 
+    // 2. Remove from storage ONLY if in normal group mode (not review mode)
     if (!isReviewMode && currentGroupName && wordLibrary[currentGroupName]) {
         wordLibrary[currentGroupName] = wordLibrary[currentGroupName].filter(w => w.word !== wordToDelete);
     }
 
     const feedback = document.getElementById("feedbackDisplay");
-    feedback.textContent = "🗑️ 已删除";
+    feedback.textContent = "🗑️ Deleted";
     feedback.className = "wrong";
     
     saveData();
@@ -609,7 +641,7 @@
               wordLibrary[name] = list;
               saveData();
               updateGroupDropdown();
-              alert("导入成功");
+              alert("Imported successfully");
           }
       };
       reader.readAsText(file);
@@ -617,7 +649,7 @@
   
   document.getElementById("btnDelGroup").onclick = () => {
       if(!currentGroupName || isReviewMode) return;
-      if(confirm(`删除分组 "${currentGroupName}"？`)) {
+      if(confirm(`Delete group "${currentGroupName}"?`)) {
           delete wordLibrary[currentGroupName];
           currentGroupName = "";
           currentQueue = [];
@@ -628,7 +660,7 @@
       }
   }
 
-  // --- Page 2 录入 ---
+  // --- Page 2 Logic ---
   function parseText(text) {
       return text.split("\n").map(l => {
           const p = l.split(/[,，]/);
@@ -639,7 +671,7 @@
   document.getElementById("btnConfirmInput").onclick = () => {
       const raw = document.getElementById("rawInput").value;
       const list = parseText(raw);
-      if(list.length === 0) return alert("内容为空");
+      if(list.length === 0) return alert("Empty content");
       
       const now = new Date();
       const name = `${String(now.getDate()).padStart(2,'0')}日_${String(now.getHours()).padStart(2,'0')}时${String(now.getMinutes()).padStart(2,'0')}分`;
@@ -647,9 +679,10 @@
       wordLibrary[name] = list;
       document.getElementById("rawInput").value = "";
       saveData();
-      alert(`已保存: ${name}`);
+      alert(`Saved: ${name}`);
       switchPage('drill');
       
+      // Auto-start normal mode
       isReviewMode = false;
       currentGroupName = name;
       updateGroupDropdown();
@@ -658,14 +691,14 @@
       pickNextWord();
   }
 
-  // --- Page 3 错题 ---
+  // --- Page 3 Logic ---
   function renderBubbleWall() {
     const container = document.getElementById("bubbleContainer");
     container.innerHTML = "";
     selectedErrorWord = null;
     
     if (errorBook.length === 0) {
-        container.innerHTML = "<div style='width:100%;text-align:center;color:#999;margin-top:20px;'>暂无错题</div>";
+        container.innerHTML = "<div style='width:100%;text-align:center;color:#999;margin-top:20px;'>No errors</div>";
         return;
     }
 
@@ -685,7 +718,7 @@
   }
 
   document.getElementById("btnErrorDelete").onclick = () => {
-      if(!selectedErrorWord) return alert("请先选中");
+      if(!selectedErrorWord) return alert("Select a word first");
       errorBook = errorBook.filter(w => w.word !== selectedErrorWord.word);
       saveData();
       renderBubbleWall();
@@ -693,7 +726,7 @@
   };
 
   document.getElementById("btnErrorTravel").onclick = () => {
-      if(!selectedErrorWord) return alert("请先选中");
+      if(!selectedErrorWord) return alert("Select a word first");
       doTravel(selectedErrorWord.word);
   };
 
@@ -707,7 +740,7 @@
       }
   }
 
-  // 启动
+  // Start
   loadData();
   switchPage('drill');
 
