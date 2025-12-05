@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Final V2.1</title>
+  <title>记忆原型 Final V2.3</title>
   <style>
     :root {
       --primary: #5ac8fa;
@@ -142,6 +142,14 @@
       margin-bottom: 15px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.05);
       flex-shrink: 0;
+      transition: color 0.3s, background-color 0.3s;
+    }
+    
+    /* 重练模式下的红色样式 */
+    .prompt-area.retry-mode {
+        color: #d32f2f; /* 深红 */
+        background: #ffebee; /* 浅红背景 */
+        border: 1px solid #ffcdd2;
     }
 
     .input-wrapper {
@@ -326,7 +334,7 @@
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary)">🚀 穿越</button>
       </div>
       
-      <div class="version-display">Version: 2.1</div>
+      <div class="version-display">Version: 2.2</div>
 
       <input type="file" id="fileInput" accept=".txt">
     </div>
@@ -360,6 +368,10 @@
   let isReviewMode = false;  
   let activeWord = null;     
   let selectedErrorWord = null;
+
+  // New in V2.3: 本组即时错题变量
+  let sessionMistakes = [];
+  let isRetryMode = false;
 
   const pages = ['drill', 'input', 'errors'];
   let currentPageIndex = 0;
@@ -401,7 +413,7 @@
 
   // --- 数据持久化 ---
   function loadData() {
-    const data = localStorage.getItem("myCardsData_Final_V2.1");
+    const data = localStorage.getItem("myCardsData_Final_V2.3");
     if (data) {
       const parsed = JSON.parse(data);
       wordLibrary = parsed.wordLibrary || {};
@@ -417,6 +429,10 @@
       currentGroupName = parsed.currentGroupName || "";
       isReviewMode = parsed.isReviewMode || false;
       activeWord = parsed.activeWord || null;
+      
+      // 不持久化 sessionMistakes，刷新后丢弃临时错题是合理的
+      sessionMistakes = [];
+      isRetryMode = false;
     }
     checkDailyReviewInit();
   }
@@ -426,11 +442,11 @@
         wordLibrary, wordLibrary_copy, errorBook, 
         currentQueue, currentGroupName, isReviewMode, activeWord 
     };
-    localStorage.setItem("myCardsData_Final_V2.1", JSON.stringify(data));
+    localStorage.setItem("myCardsData_Final_V2.3", JSON.stringify(data));
     updateReviewBadge(); 
   }
 
-  // --- 页面切换 & 滑动 ---
+  // --- 页面切换 ---
   function switchPage(pageName) {
     const idx = pages.indexOf(pageName);
     if(idx !== -1) currentPageIndex = idx;
@@ -461,14 +477,16 @@
     }
   }, {passive: true});
 
-  // --- 逻辑：导入/录入 ---
+  // --- 逻辑：导入 ---
   function handleImportWords(name, list) {
       wordLibrary[name] = [...list];
       wordLibrary_copy[name] = JSON.parse(JSON.stringify(list));
       saveData();
-      // 取消 alert(`已导入分组: ${name}`);
       
       isReviewMode = false;
+      isRetryMode = false;
+      sessionMistakes = []; // 重置临时错题
+      
       currentGroupName = name;
       currentQueue = [...wordLibrary[name]];
       
@@ -484,6 +502,7 @@
     const todayKey = getTodayKey();
     const copyKey = todayKey + '_copy';
 
+    // 1. ErrorBook 更新
     const existing = errorBook.find(w => w.word === wordObj.word);
     if (existing) {
         existing.lastReview = now;
@@ -496,6 +515,7 @@
         });
     }
 
+    // 2. 加入今日复习变量
     let reviewList = JSON.parse(localStorage.getItem(todayKey) || '[]');
     let reviewCopy = JSON.parse(localStorage.getItem(copyKey) || '[]');
 
@@ -505,15 +525,27 @@
     localStorage.setItem(todayKey, JSON.stringify(reviewList));
     localStorage.setItem(copyKey, JSON.stringify(reviewCopy));
 
+    // 3. 如果在复习模式，同步内存
     if (isReviewMode) {
         if (!currentQueue.some(w => w.word === wordObj.word)) {
             currentQueue.push(wordObj);
+        }
+    } 
+    // 4. [NEW] 如果是普通模式，且不在重练中，加入临时重练队列
+    else if (!isRetryMode) {
+        // 判重，防止一个词反复错反复加
+        if (!sessionMistakes.some(w => w.word === wordObj.word)) {
+            sessionMistakes.push(wordObj);
         }
     }
   }
 
   // --- 逻辑：复习按钮 ---
   document.getElementById("btnSmartReview").onclick = () => {
+    // 切换到复习模式前，清空临时重练状态
+    sessionMistakes = [];
+    isRetryMode = false;
+
     const todayKey = getTodayKey();
     const copyKey = todayKey + '_copy';
     
@@ -521,18 +553,14 @@
 
     if (storedList.length > 0) {
         currentQueue = storedList;
-        // 取消 alert(`继续今日复习...`);
     } else {
         const dueWords = calcDueWords();
         if (dueWords.length === 0) {
-            // 取消 alert("今日暂无待复习单词");
             return;
         }
         localStorage.setItem(todayKey, JSON.stringify(dueWords));
         localStorage.setItem(copyKey, JSON.stringify(dueWords));
-        
         currentQueue = dueWords;
-        // 取消 alert(`开始新一轮复习...`);
     }
 
     isReviewMode = true;
@@ -560,16 +588,15 @@
          item.lockDay = todayStr;
     }
 
+    // 从当前队列删除
+    currentQueue = currentQueue.filter(w => w.word !== wordStr);
+
     if (isReviewMode) {
-        currentQueue = currentQueue.filter(w => w.word !== wordStr);
         const todayKey = getTodayKey();
         let list = JSON.parse(localStorage.getItem(todayKey) || '[]');
         list = list.filter(w => w.word !== wordStr);
         localStorage.setItem(todayKey, JSON.stringify(list));
-
-        // 取消 setTimeout alert("🎉 本轮复习完成！")
-    } else {
-        currentQueue = currentQueue.filter(w => w.word !== wordStr);
+    } else if (!isRetryMode) { // 普通模式才从库里删，重练模式不删库（因为库里已经没了）
         if (currentGroupName && wordLibrary[currentGroupName]) {
             wordLibrary[currentGroupName] = wordLibrary[currentGroupName].filter(w => w.word !== wordStr);
         }
@@ -579,7 +606,7 @@
   // --- UI: 进度条 ---
   function updateProgressBar() {
     const disp = document.getElementById("progressDisplay");
-    if (!activeWord) { disp.textContent = "0 / 0"; return; }
+    if (!activeWord) { disp.textContent = ""; return; } // 空时不显示
 
     if (isReviewMode) {
         const todayKey = getTodayKey();
@@ -588,9 +615,12 @@
         const total = copy.length;
         const done = total - currentQueue.length; 
         disp.textContent = `${done + 1} / ${total}`;
+    } else if (isRetryMode) {
+        // 重练模式：直接显示剩余
+        disp.textContent = `错题重练: ${currentQueue.length}`;
     } else {
         if (!currentGroupName || !wordLibrary_copy[currentGroupName]) {
-            disp.textContent = "0 / 0"; return;
+            disp.textContent = ""; return;
         }
         const total = wordLibrary_copy[currentGroupName].length;
         const done = total - currentQueue.length;
@@ -604,20 +634,58 @@
     const input = document.getElementById("wordInput");
 
     if (currentQueue.length === 0) {
+      // 检查是否触发即时重练
+      if (!isReviewMode && !isRetryMode && sessionMistakes.length > 0) {
+          // 切换到重练模式
+          isRetryMode = true;
+          currentQueue = [...sessionMistakes];
+          sessionMistakes = []; // 清空临时池，避免死循环
+          
+          // UI提示可选，这里直接开始，仅通过红色字提示
+          pickNextWord(); // 递归调用以显示重练的第一个词
+          return;
+      }
+
+      // 真正完成
       activeWord = null;
-      defDisplay.textContent = "🎉 完成！";
+      defDisplay.textContent = isRetryMode ? "⭕️ 错题重练完成！" : "🎉 完成！";
+      defDisplay.className = "prompt-area"; // 恢复颜色
       input.value = ""; input.disabled = true;
+      
+      // 结束后重置重练状态
+      isRetryMode = false;
+      
       updateProgressBar();
       saveData();
       return;
     }
+
     input.disabled = false;
     const idx = Math.floor(Math.random() * currentQueue.length);
     activeWord = currentQueue[idx];
     input.value = ""; input.focus();
-    if (activeWord) defDisplay.textContent = activeWord.def;
-    updateProgressBar();
+    
+    renderDrillUI();
     saveData();
+  }
+
+  function renderDrillUI() {
+    const defDisplay = document.getElementById("definitionDisplay");
+    
+    if (activeWord) {
+        defDisplay.textContent = activeWord.def;
+        // 红色重练提示
+        if (isRetryMode) {
+            defDisplay.classList.add("retry-mode");
+        } else {
+            defDisplay.classList.remove("retry-mode");
+        }
+    } else if (!currentGroupName) {
+        defDisplay.textContent = "请选择分组";
+        defDisplay.classList.remove("retry-mode");
+    }
+    
+    updateProgressBar();
   }
 
   // --- 交互: 回车 ---
@@ -630,6 +698,9 @@
         handleCorrect(activeWord.word);
         pickNextWord();
       } else {
+        // 立即清空，不阻塞
+        e.target.value = "";
+
         const originalDef = activeWord.def;
         const correctWord = activeWord.word;
         const defDisplay = document.getElementById("definitionDisplay");
@@ -641,28 +712,14 @@
         updateProgressBar();
 
         setTimeout(() => {
+            // 恢复文字，同时恢复颜色（如果是重练模式，恢复为红色，否则黑色）
             defDisplay.textContent = originalDef;
-            defDisplay.style.color = "#1c1c1e";
-            e.target.value = "";
-        }, 1500);
+            // 移除临时行内样式，让 CSS 类控制颜色
+            defDisplay.style.color = ""; 
+        }, 1200);
       }
     }
   });
-
-  // --- 交互: 导入 ---
-  document.getElementById("btnImport").onclick = () => document.getElementById("fileInput").click();
-  document.getElementById("fileInput").onchange = (e) => {
-      const file = e.target.files[0]; if(!file) return;
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-          const list = parseText(evt.target.result);
-          if(list.length){
-              const name = file.name.replace(/\.[^/.]+$/, "");
-              handleImportWords(name, list);
-          }
-      };
-      reader.readAsText(file);
-  }
 
   // --- 交互: 删组 ---
   document.getElementById("btnDelGroup").onclick = () => {
@@ -670,7 +727,8 @@
       if(confirm(`删除分组 "${currentGroupName}"？`)) {
           delete wordLibrary[currentGroupName];
           delete wordLibrary_copy[currentGroupName];
-          currentGroupName = ""; currentQueue = []; activeWord = null;
+          currentGroupName = ""; currentQueue = []; activeWord = null; 
+          sessionMistakes = []; isRetryMode = false;
           saveData(); updateGroupDropdown(); 
           document.getElementById("definitionDisplay").textContent = "请选择分组";
           updateProgressBar();
@@ -680,7 +738,7 @@
   // --- 交互: 录入 ---
   document.getElementById("btnConfirmInput").onclick = () => {
       const raw = document.getElementById("rawInput").value; const list = parseText(raw);
-      if(list.length === 0) return; // 取消 alert("内容为空");
+      if(list.length === 0) return; 
       const now = new Date();
       const name = `${String(now.getDate()).padStart(2,'0')}日_${String(now.getHours()).padStart(2,'0')}时${String(now.getMinutes()).padStart(2,'0')}分`;
       document.getElementById("rawInput").value = "";
@@ -699,6 +757,8 @@
   document.getElementById("groupSelectorSelect").addEventListener("change", (e) => {
     const name = e.target.value; if (!name) return;
     isReviewMode = false;
+    isRetryMode = false;
+    sessionMistakes = [];
     currentGroupName = name;
     currentQueue = [...wordLibrary[name]];
     updateGroupDropdown(); activeWord = null; pickNextWord();
@@ -744,7 +804,7 @@
   }
 
   document.getElementById("btnErrorDelete").onclick = () => {
-      if(!selectedErrorWord) return; // 取消 alert
+      if(!selectedErrorWord) return;
       const wordToDelete = selectedErrorWord.word;
       
       errorBook = errorBook.filter(w => w.word !== wordToDelete);
@@ -760,7 +820,7 @@
   };
 
   document.getElementById("btnErrorTravel").onclick = () => {
-      if(!selectedErrorWord) return; // 取消 alert
+      if(!selectedErrorWord) return;
       location.href = `eudic://dict/${selectedErrorWord.word}`;
   };
 
