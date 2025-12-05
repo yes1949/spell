@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Final V7</title>
+  <title>记忆原型 Final V2.1</title>
   <style>
     :root {
       --primary: #5ac8fa;
@@ -169,6 +169,7 @@
     }
     #wordInput:focus { border-bottom-color: var(--active-blue); }
 
+    /* 进度显示 */
     .progress-text {
       font-size: 12px;
       color: #999;
@@ -180,6 +181,7 @@
       font-variant-numeric: tabular-nums; 
     }
 
+    /* 底部按钮 */
     .bottom-actions {
       display: flex;
       justify-content: space-between;
@@ -194,6 +196,15 @@
       border-radius: 22px;
       font-size: 15px;
       box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+    }
+
+    /* 版本号样式 */
+    .version-display {
+      text-align: center;
+      font-size: 10px;
+      color: #c7c7cc;
+      margin-top: 5px;
+      margin-bottom: 10px;
     }
 
     /* ================= 第二页：录入 ================= */
@@ -234,7 +245,7 @@
       width: 100%;
       display: flex;
       flex-wrap: wrap;
-      align-content: center;
+      align-content: center; /* 中间偏下 */
       gap: 10px;
       justify-content: center;
       overflow: hidden;
@@ -314,6 +325,9 @@
         <button class="bottom-btn" id="btnDeleteWord" style="background:var(--danger); box-shadow:0 3px 8px rgba(255,59,48,0.2)">🗑️ 删除</button>
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary)">🚀 穿越</button>
       </div>
+      
+      <div class="version-display">Version: 2.1</div>
+
       <input type="file" id="fileInput" accept=".txt">
     </div>
 
@@ -340,7 +354,6 @@
   let wordLibrary = {};      
   let wordLibrary_copy = {}; 
   let errorBook = [];        
-  // errorBook item: { word, def, lastReview(ms), stage, lockDay("YYYYMMDD") }
   
   let currentQueue = [];     
   let currentGroupName = ""; 
@@ -364,23 +377,18 @@
     return `review_${getTodayStr()}`;
   }
 
-  // 核心筛选算法：时间到期 OR 今日锁定
   function calcDueWords() {
     const now = Date.now();
     const todayStr = getTodayStr();
 
     return errorBook.filter(w => {
-        // 1. 今日锁定 (Lock Mechanism)
         if (w.lockDay === todayStr) return true;
-
-        // 2. 时间到期 (Time Mechanism)
         const stage = w.stage || 0;
         const intervalDays = stage < REVIEW_INTERVALS.length ? REVIEW_INTERVALS[stage] : 120;
         return (now - w.lastReview) >= (intervalDays * 86400000);
     });
   }
 
-  // --- 每日初始化 ---
   function checkDailyReviewInit() {
     const todayKey = getTodayKey();
     const stored = localStorage.getItem(todayKey);
@@ -393,7 +401,7 @@
 
   // --- 数据持久化 ---
   function loadData() {
-    const data = localStorage.getItem("myCardsData_Final_V7");
+    const data = localStorage.getItem("myCardsData_Final_V2.1");
     if (data) {
       const parsed = JSON.parse(data);
       wordLibrary = parsed.wordLibrary || {};
@@ -418,7 +426,7 @@
         wordLibrary, wordLibrary_copy, errorBook, 
         currentQueue, currentGroupName, isReviewMode, activeWord 
     };
-    localStorage.setItem("myCardsData_Final_V7", JSON.stringify(data));
+    localStorage.setItem("myCardsData_Final_V2.1", JSON.stringify(data));
     updateReviewBadge(); 
   }
 
@@ -426,12 +434,17 @@
   function switchPage(pageName) {
     const idx = pages.indexOf(pageName);
     if(idx !== -1) currentPageIndex = idx;
+
     document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    
     document.getElementById('page-' + pageName).classList.add('active');
     document.querySelectorAll('.nav-item')[idx].classList.add('active');
+
     if (pageName === 'drill') {
-      updateGroupDropdown(); renderDrillUI(); updateReviewBadge();
+      updateGroupDropdown();
+      renderDrillUI();
+      updateReviewBadge();
     } else if (pageName === 'errors') {
       renderBubbleWall();
     }
@@ -453,28 +466,29 @@
       wordLibrary[name] = [...list];
       wordLibrary_copy[name] = JSON.parse(JSON.stringify(list));
       saveData();
-      alert(`已导入分组: ${name}`);
+      // 取消 alert(`已导入分组: ${name}`);
+      
       isReviewMode = false;
       currentGroupName = name;
       currentQueue = [...wordLibrary[name]];
+      
       updateGroupDropdown();
       activeWord = null;
       pickNextWord();
   }
 
-  // --- 逻辑：错题处理 (入库 + 立即入队 + 锁定) ---
+  // --- 逻辑：错题处理 ---
   function handleMistake(wordObj) {
     const now = Date.now();
     const todayStr = getTodayStr();
     const todayKey = getTodayKey();
     const copyKey = todayKey + '_copy';
 
-    // 1. ErrorBook 更新
     const existing = errorBook.find(w => w.word === wordObj.word);
     if (existing) {
         existing.lastReview = now;
         existing.stage = 0; 
-        existing.lockDay = todayStr; // 锁定
+        existing.lockDay = todayStr;
     } else {
         errorBook.push({
             word: wordObj.word, def: wordObj.def, 
@@ -482,7 +496,6 @@
         });
     }
 
-    // 2. 加入今日复习变量
     let reviewList = JSON.parse(localStorage.getItem(todayKey) || '[]');
     let reviewCopy = JSON.parse(localStorage.getItem(copyKey) || '[]');
 
@@ -492,7 +505,6 @@
     localStorage.setItem(todayKey, JSON.stringify(reviewList));
     localStorage.setItem(copyKey, JSON.stringify(reviewCopy));
 
-    // 3. 若在复习模式，同步内存
     if (isReviewMode) {
         if (!currentQueue.some(w => w.word === wordObj.word)) {
             currentQueue.push(wordObj);
@@ -500,28 +512,27 @@
     }
   }
 
-  // --- 逻辑：复习按钮 (重算逻辑) ---
+  // --- 逻辑：复习按钮 ---
   document.getElementById("btnSmartReview").onclick = () => {
     const todayKey = getTodayKey();
     const copyKey = todayKey + '_copy';
     
     let storedList = JSON.parse(localStorage.getItem(todayKey) || '[]');
 
-    // 非空则续，空则重算
     if (storedList.length > 0) {
         currentQueue = storedList;
-        alert(`继续今日复习，剩余 ${storedList.length} 个`);
+        // 取消 alert(`继续今日复习...`);
     } else {
         const dueWords = calcDueWords();
         if (dueWords.length === 0) {
-            alert("今日暂无待复习单词");
+            // 取消 alert("今日暂无待复习单词");
             return;
         }
         localStorage.setItem(todayKey, JSON.stringify(dueWords));
         localStorage.setItem(copyKey, JSON.stringify(dueWords));
         
         currentQueue = dueWords;
-        alert(`开始新一轮复习，共 ${dueWords.length} 个`);
+        // 取消 alert(`开始新一轮复习...`);
     }
 
     isReviewMode = true;
@@ -531,16 +542,13 @@
     pickNextWord();
   };
 
-  // --- 逻辑：拼写正确 (Stage保护 & 锁定) ---
+  // --- 逻辑：拼写正确 ---
   function handleCorrect(wordStr) {
     const todayStr = getTodayStr();
 
-    // 1. 更新 ErrorBook (复习模式或普通模式拼对错词)
     const errIdx = errorBook.findIndex(w => w.word === wordStr);
     if (errIdx !== -1) {
          const item = errorBook[errIdx];
-         
-         // Stage 保护：如果上次复习日期不是今天，才升级
          const lastRevDate = new Date(item.lastReview).toDateString();
          const nowDate = new Date().toDateString();
          
@@ -549,10 +557,9 @@
          }
          
          item.lastReview = Date.now();
-         item.lockDay = todayStr; // 拼对了也锁定，保证今日可重复复习
+         item.lockDay = todayStr;
     }
 
-    // 2. 队列移除
     if (isReviewMode) {
         currentQueue = currentQueue.filter(w => w.word !== wordStr);
         const todayKey = getTodayKey();
@@ -560,7 +567,7 @@
         list = list.filter(w => w.word !== wordStr);
         localStorage.setItem(todayKey, JSON.stringify(list));
 
-        if (list.length === 0) setTimeout(() => alert("🎉 本轮复习完成！"), 300);
+        // 取消 setTimeout alert("🎉 本轮复习完成！")
     } else {
         currentQueue = currentQueue.filter(w => w.word !== wordStr);
         if (currentGroupName && wordLibrary[currentGroupName]) {
@@ -579,7 +586,6 @@
         const copyKey = todayKey + '_copy';
         const copy = JSON.parse(localStorage.getItem(copyKey) || '[]');
         const total = copy.length;
-        // 计算: 总数 - 内存剩余 + 1 (当前)
         const done = total - currentQueue.length; 
         disp.textContent = `${done + 1} / ${total}`;
     } else {
@@ -630,7 +636,7 @@
         defDisplay.textContent = `❌ ${correctWord}`;
         defDisplay.style.color = "var(--danger)";
         
-        handleMistake(activeWord); // 入库+锁定
+        handleMistake(activeWord);
         saveData();
         updateProgressBar();
 
@@ -674,7 +680,7 @@
   // --- 交互: 录入 ---
   document.getElementById("btnConfirmInput").onclick = () => {
       const raw = document.getElementById("rawInput").value; const list = parseText(raw);
-      if(list.length === 0) return alert("内容为空");
+      if(list.length === 0) return; // 取消 alert("内容为空");
       const now = new Date();
       const name = `${String(now.getDate()).padStart(2,'0')}日_${String(now.getHours()).padStart(2,'0')}时${String(now.getMinutes()).padStart(2,'0')}分`;
       document.getElementById("rawInput").value = "";
@@ -738,31 +744,29 @@
   }
 
   document.getElementById("btnErrorDelete").onclick = () => {
-      if(!selectedErrorWord) return alert("请先选中");
+      if(!selectedErrorWord) return; // 取消 alert
       const wordToDelete = selectedErrorWord.word;
       
-      // 1. ErrorBook 删
       errorBook = errorBook.filter(w => w.word !== wordToDelete);
       
-      // 2. 今日复习删
       const todayKey = getTodayKey();
       let list = JSON.parse(localStorage.getItem(todayKey) || '[]');
       if (list.some(w => w.word === wordToDelete)) {
           list = list.filter(w => w.word !== wordToDelete);
           localStorage.setItem(todayKey, JSON.stringify(list));
       }
-
+      
       saveData(); renderBubbleWall(); updateReviewBadge();
   };
 
   document.getElementById("btnErrorTravel").onclick = () => {
-      if(!selectedErrorWord) return alert("请先选中");
+      if(!selectedErrorWord) return; // 取消 alert
       location.href = `eudic://dict/${selectedErrorWord.word}`;
   };
 
   document.getElementById("btnDeleteWord").onclick = () => {
     if (!activeWord) return;
-    handleCorrect(activeWord.word); // 逻辑上视为拼对移除
+    handleCorrect(activeWord.word);
     saveData(); pickNextWord();
   };
   
