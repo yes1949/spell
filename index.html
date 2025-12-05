@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Final V2.4</title>
+  <title>记忆原型 Final V2.3</title>
   <style>
     :root {
       --primary: #5ac8fa;
@@ -145,9 +145,10 @@
       transition: color 0.3s, background-color 0.3s;
     }
     
+    /* 重练模式下的红色样式 */
     .prompt-area.retry-mode {
-        color: #d32f2f;
-        background: #ffebee;
+        color: #d32f2f; /* 深红 */
+        background: #ffebee; /* 浅红背景 */
         border: 1px solid #ffcdd2;
     }
 
@@ -176,6 +177,7 @@
     }
     #wordInput:focus { border-bottom-color: var(--active-blue); }
 
+    /* 进度显示 */
     .progress-text {
       font-size: 12px;
       color: #999;
@@ -187,6 +189,7 @@
       font-variant-numeric: tabular-nums; 
     }
 
+    /* 底部按钮 */
     .bottom-actions {
       display: flex;
       justify-content: space-between;
@@ -203,6 +206,7 @@
       box-shadow: 0 3px 8px rgba(0,0,0,0.1);
     }
 
+    /* 版本号样式 */
     .version-display {
       text-align: center;
       font-size: 10px;
@@ -249,7 +253,7 @@
       width: 100%;
       display: flex;
       flex-wrap: wrap;
-      align-content: center;
+      align-content: center; /* 中间偏下 */
       gap: 10px;
       justify-content: center;
       overflow: hidden;
@@ -330,7 +334,7 @@
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary)">🚀 穿越</button>
       </div>
       
-      <div class="version-display">Version: 2.4</div>
+      <div class="version-display">Version: 2.6</div>
 
       <input type="file" id="fileInput" accept=".txt">
     </div>
@@ -365,6 +369,7 @@
   let activeWord = null;     
   let selectedErrorWord = null;
 
+  // New in V2.3: 本组即时错题变量
   let sessionMistakes = [];
   let isRetryMode = false;
 
@@ -408,7 +413,7 @@
 
   // --- 数据持久化 ---
   function loadData() {
-    const data = localStorage.getItem("myCardsData_Final_V2.4");
+    const data = localStorage.getItem("myCardsData_Final_V2.3");
     if (data) {
       const parsed = JSON.parse(data);
       wordLibrary = parsed.wordLibrary || {};
@@ -425,6 +430,7 @@
       isReviewMode = parsed.isReviewMode || false;
       activeWord = parsed.activeWord || null;
       
+      // 不持久化 sessionMistakes，刷新后丢弃临时错题是合理的
       sessionMistakes = [];
       isRetryMode = false;
     }
@@ -436,7 +442,7 @@
         wordLibrary, wordLibrary_copy, errorBook, 
         currentQueue, currentGroupName, isReviewMode, activeWord 
     };
-    localStorage.setItem("myCardsData_Final_V2.4", JSON.stringify(data));
+    localStorage.setItem("myCardsData_Final_V2.3", JSON.stringify(data));
     updateReviewBadge(); 
   }
 
@@ -479,7 +485,7 @@
       
       isReviewMode = false;
       isRetryMode = false;
-      sessionMistakes = [];
+      sessionMistakes = []; // 重置临时错题
       
       currentGroupName = name;
       currentQueue = [...wordLibrary[name]];
@@ -496,6 +502,7 @@
     const todayKey = getTodayKey();
     const copyKey = todayKey + '_copy';
 
+    // 1. ErrorBook 更新
     const existing = errorBook.find(w => w.word === wordObj.word);
     if (existing) {
         existing.lastReview = now;
@@ -508,6 +515,7 @@
         });
     }
 
+    // 2. 加入今日复习变量
     let reviewList = JSON.parse(localStorage.getItem(todayKey) || '[]');
     let reviewCopy = JSON.parse(localStorage.getItem(copyKey) || '[]');
 
@@ -517,11 +525,15 @@
     localStorage.setItem(todayKey, JSON.stringify(reviewList));
     localStorage.setItem(copyKey, JSON.stringify(reviewCopy));
 
+    // 3. 如果在复习模式，同步内存
     if (isReviewMode) {
         if (!currentQueue.some(w => w.word === wordObj.word)) {
             currentQueue.push(wordObj);
         }
-    } else if (!isRetryMode) {
+    } 
+    // 4. [NEW] 如果是普通模式，且不在重练中，加入临时重练队列
+    else if (!isRetryMode) {
+        // 判重，防止一个词反复错反复加
         if (!sessionMistakes.some(w => w.word === wordObj.word)) {
             sessionMistakes.push(wordObj);
         }
@@ -530,6 +542,7 @@
 
   // --- 逻辑：复习按钮 ---
   document.getElementById("btnSmartReview").onclick = () => {
+    // 切换到复习模式前，清空临时重练状态
     sessionMistakes = [];
     isRetryMode = false;
 
@@ -575,6 +588,7 @@
          item.lockDay = todayStr;
     }
 
+    // 从当前队列删除
     currentQueue = currentQueue.filter(w => w.word !== wordStr);
 
     if (isReviewMode) {
@@ -582,7 +596,7 @@
         let list = JSON.parse(localStorage.getItem(todayKey) || '[]');
         list = list.filter(w => w.word !== wordStr);
         localStorage.setItem(todayKey, JSON.stringify(list));
-    } else if (!isRetryMode) {
+    } else if (!isRetryMode) { // 普通模式才从库里删，重练模式不删库（因为库里已经没了）
         if (currentGroupName && wordLibrary[currentGroupName]) {
             wordLibrary[currentGroupName] = wordLibrary[currentGroupName].filter(w => w.word !== wordStr);
         }
@@ -592,7 +606,7 @@
   // --- UI: 进度条 ---
   function updateProgressBar() {
     const disp = document.getElementById("progressDisplay");
-    if (!activeWord) { disp.textContent = ""; return; }
+    if (!activeWord) { disp.textContent = ""; return; } // 空时不显示
 
     if (isReviewMode) {
         const todayKey = getTodayKey();
@@ -602,6 +616,7 @@
         const done = total - currentQueue.length; 
         disp.textContent = `${done + 1} / ${total}`;
     } else if (isRetryMode) {
+        // 重练模式：直接显示剩余
         disp.textContent = `错题重练: ${currentQueue.length}`;
     } else {
         if (!currentGroupName || !wordLibrary_copy[currentGroupName]) {
@@ -619,19 +634,25 @@
     const input = document.getElementById("wordInput");
 
     if (currentQueue.length === 0) {
-      // 临时重练触发
+      // 检查是否触发即时重练
       if (!isReviewMode && !isRetryMode && sessionMistakes.length > 0) {
+          // 切换到重练模式
           isRetryMode = true;
           currentQueue = [...sessionMistakes];
-          sessionMistakes = [];
-          pickNextWord();
+          sessionMistakes = []; // 清空临时池，避免死循环
+          
+          // UI提示可选，这里直接开始，仅通过红色字提示
+          pickNextWord(); // 递归调用以显示重练的第一个词
           return;
       }
 
+      // 真正完成
       activeWord = null;
       defDisplay.textContent = isRetryMode ? "⭕️ 错题重练完成！" : "🎉 完成！";
-      defDisplay.className = "prompt-area"; 
+      defDisplay.className = "prompt-area"; // 恢复颜色
       input.value = ""; input.disabled = true;
+      
+      // 结束后重置重练状态
       isRetryMode = false;
       
       updateProgressBar();
@@ -653,6 +674,7 @@
     
     if (activeWord) {
         defDisplay.textContent = activeWord.def;
+        // 红色重练提示
         if (isRetryMode) {
             defDisplay.classList.add("retry-mode");
         } else {
@@ -676,7 +698,8 @@
         handleCorrect(activeWord.word);
         pickNextWord();
       } else {
-        e.target.value = ""; // 立即清空
+        // 立即清空，不阻塞
+        e.target.value = "";
 
         const originalDef = activeWord.def;
         const correctWord = activeWord.word;
@@ -689,7 +712,9 @@
         updateProgressBar();
 
         setTimeout(() => {
+            // 恢复文字，同时恢复颜色（如果是重练模式，恢复为红色，否则黑色）
             defDisplay.textContent = originalDef;
+            // 移除临时行内样式，让 CSS 类控制颜色
             defDisplay.style.color = ""; 
         }, 1200);
       }
@@ -728,25 +753,13 @@
       }).filter(x => x);
   }
 
-  // --- 交互: 选组 (Fix: 自动恢复机制) ---
+  // --- 交互: 选组 ---
   document.getElementById("groupSelectorSelect").addEventListener("change", (e) => {
     const name = e.target.value; if (!name) return;
-    
-    // 重置临时状态
     isReviewMode = false;
     isRetryMode = false;
     sessionMistakes = [];
-
     currentGroupName = name;
-
-    // 关键逻辑：如果该组已空，自动从备份恢复
-    if (wordLibrary[name] && wordLibrary[name].length === 0) {
-        if (wordLibrary_copy[name] && wordLibrary_copy[name].length > 0) {
-            wordLibrary[name] = JSON.parse(JSON.stringify(wordLibrary_copy[name]));
-            saveData();
-        }
-    }
-
     currentQueue = [...wordLibrary[name]];
     updateGroupDropdown(); activeWord = null; pickNextWord();
   });
