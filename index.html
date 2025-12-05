@@ -3,16 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Max</title>
+  <title>记忆原型 Compact V2</title>
   <style>
     :root {
       --primary: #5ac8fa;
       --active-blue: #007aff;
-      --danger: #ff3b30; /* 删除按钮警示红 */
-      --bg-color: #f2f2f7; /* iOS 系统级背景灰 */
+      --danger: #ff3b30;
+      --bg-color: #f2f2f7;
       --card-bg: #ffffff;
       --bubble-bg: #81cafa;
-      --btn-radius: 22px;
+      --btn-radius: 18px;
+      --nav-height: 50px;
     }
 
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -21,35 +22,54 @@
       height: 100%;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
       background-color: var(--bg-color);
       display: flex;
       flex-direction: column;
       overflow: hidden;
     }
 
-    /* 顶部导航 (避开刘海屏) */
-    .nav-bar {
-      padding-top: env(safe-area-inset-top); /* 关键：适配刘海 */
-      height: calc(44px + env(safe-area-inset-top));
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 600;
-      font-size: 17px;
-      background: var(--card-bg);
+    /* --- 顶部导航栏 --- */
+    .top-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: calc(var(--nav-height) + env(safe-area-inset-top));
+      padding-top: env(safe-area-inset-top);
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(10px);
       border-bottom: 0.5px solid #c6c6c8;
-      z-index: 100;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      z-index: 1000;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
 
-    /* 主内容区 */
-    .main-content {
+    .nav-item {
       flex: 1;
-      position: relative;
+      height: 100%;
       display: flex;
       flex-direction: column;
-      padding: 20px;
-      padding-bottom: calc(20px + env(safe-area-inset-bottom)); /* 适配底部黑条 */
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: #999;
+      font-weight: 500;
+    }
+    .nav-item.active { color: var(--active-blue); font-weight: 700; }
+    .nav-icon { font-size: 18px; margin-bottom: 2px; }
+
+    /* --- 主内容区 --- */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 15px;
+      margin-top: calc(var(--nav-height) + env(safe-area-inset-top));
+      padding-bottom: env(safe-area-inset-bottom); 
+      overflow-y: hidden;
     }
 
     .page {
@@ -65,154 +85,172 @@
       outline: none;
       background: var(--primary);
       color: white;
-      font-size: 15px; /* Max 屏幕大，字号稍大 */
+      font-size: 14px;
       font-weight: 600;
       padding: 0;
       border-radius: var(--btn-radius);
       cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: opacity 0.2s;
     }
-    button:active { opacity: 0.7; transform: scale(0.98); }
+    button:active { opacity: 0.7; }
 
-    /* --- Page 1: 拼写 --- */
+    /* ================= 第一页：紧凑拼写 ================= */
     
     .top-controls {
       display: flex;
       justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 25px; /* 拉大间距 */
+      gap: 8px;
+      margin-bottom: 15px;
     }
     
     .pill-btn {
       flex: 1;
-      height: 40px; /* 加高按钮便于点击 */
-      border-radius: 20px;
-      font-size: 14px;
+      height: 36px;
+      border-radius: 18px;
+      font-size: 13px;
       position: relative;
+      background: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       overflow: hidden;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      white-space: nowrap;
     }
 
     #groupSelectorSelect {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0;
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      opacity: 0; z-index: 10; cursor: pointer;
     }
+    #groupBtnLabel { pointer-events: none; z-index: 5; padding: 0 4px; text-overflow: ellipsis; overflow: hidden; }
 
-    /* 提示区 - 充分利用 Max 的高度 */
     .prompt-area {
       background: #e1f5fe;
       color: #1c1c1e;
-      border-radius: 24px;
-      padding: 30px 20px;
-      flex: 1; /* 占据中间剩余空间 */
-      max-height: 40%; /* 限制最大高度 */
+      border-radius: 16px;
+      padding: 15px;
+      min-height: 80px;
+      max-height: 120px; 
       display: flex;
       align-items: center;
       justify-content: center;
       text-align: center;
-      font-size: 22px; /* 大屏大字 */
-      font-weight: 700;
-      margin-bottom: 30px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      word-break: break-word;
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      flex-shrink: 0;
     }
 
-    /* 输入区 */
+    /* 输入区调整：去除flex:1，不再占满剩余空间 */
     .input-wrapper {
-      margin-bottom: 40px; 
       width: 100%;
       text-align: center;
+      /* flex: 1; <--- 删除了这行 */
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      margin-bottom: 0; /* 下边距交给按钮的 margin-top */
     }
-    
-    /* 移除了 .input-label */
 
     #wordInput {
       width: 100%;
       border: none;
       border-bottom: 2px solid #c7c7cc;
-      font-size: 32px; /* 超大输入字号 */
+      font-size: 28px;
       text-align: center;
-      padding: 10px 0;
+      padding: 8px 0;
       background: transparent;
       outline: none;
       color: #000;
       border-radius: 0;
-      font-family: monospace; /* 等宽字体方便对齐 */
+      font-family: monospace;
+      margin-top: 10px;
     }
     #wordInput:focus { border-bottom-color: var(--active-blue); }
 
-    /* 底部按钮 */
-    .bottom-actions {
-      display: flex;
-      justify-content: space-between;
-      margin-top: auto; /* 推到底部 */
-      padding-bottom: 10px;
+    #feedbackDisplay {
+        height: 20px; 
+        font-size: 15px; 
+        text-align: center; 
+        margin-top: 10px;
+        font-weight: 700;
     }
+    .correct { color: #34c759; }
+    .wrong { color: #ff3b30; }
+
+    /* 底部按钮调整：不再置底，而是紧跟输入区 */
+    .bottom-actions {
+  display: flex;
+  justify-content: space-between;
+  
+  gap: 15px; /* <--- 新增这行：让两个按钮之间有空隙 */
+  
+  margin-top: 30px;
+  padding-bottom: 10px;
+}
     
     .bottom-btn {
-      width: 120px; /* 更宽的按钮 */
-      height: 50px; /* 更高的按钮 */
-      border-radius: 25px;
-      font-size: 17px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      flex: 1;
+      height: 44px;
+      border-radius: 22px;
+      font-size: 15px;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.1);
     }
 
-    /* --- Page 2: 录入 --- */
+    /* ================= 第二页：录入 ================= */
     .input-page-container {
       display: flex;
       flex-direction: column;
-      align-items: center;
       height: 100%;
-      padding-top: 20px;
+      padding-bottom: 10px;
     }
 
     #rawInput {
+      flex: 1;
       width: 100%;
-      flex: 1; /* 填满空间 */
       background: #ffffff;
       border: 1px solid #e5e5ea;
-      border-radius: 24px;
-      padding: 20px;
-      font-size: 17px;
+      border-radius: 16px;
+      padding: 15px;
+      font-size: 16px;
       line-height: 1.5;
       resize: none;
       outline: none;
-      margin-bottom: 20px;
+      margin-bottom: 15px;
       color: #333;
-      box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
     }
 
     .save-btn {
       width: 100%;
-      height: 56px; /* 大按钮 */
-      font-size: 18px;
-      border-radius: 28px;
+      height: 48px;
+      font-size: 16px;
+      border-radius: 24px;
       background: var(--active-blue);
-      box-shadow: 0 4px 12px rgba(0,122,255,0.3);
-      margin-bottom: 10px;
     }
 
-    /* --- Page 3: 错题 --- */
+    /* ================= 第三页：错题 ================= */
     #bubbleContainer {
       flex: 1;
       width: 100%;
       display: flex;
       flex-wrap: wrap;
       align-content: flex-start;
-      gap: 12px;
+      gap: 10px;
       justify-content: center;
-      overflow: hidden; /* 超出隐藏 */
-      padding: 10px 0;
+      overflow: hidden;
+      padding-bottom: 10px;
     }
 
     .bubble {
       background: var(--bubble-bg);
       color: white;
-      padding: 12px 24px;
-      border-radius: 24px;
-      font-size: 16px;
+      padding: 8px 16px;
+      border-radius: 18px;
+      font-size: 14px;
       cursor: pointer;
       max-width: 100%;
       white-space: nowrap;
@@ -223,67 +261,38 @@
     .bubble.selected {
       background: var(--active-blue);
       transform: scale(1.05);
-      box-shadow: 0 4px 12px rgba(0,122,255,0.4);
+      box-shadow: 0 2px 8px rgba(0,122,255,0.4);
     }
 
     .error-bottom-actions {
       display: flex;
       justify-content: space-between;
-      gap: 20px;
+      gap: 15px;
       padding-bottom: 10px;
+      margin-top: auto; /* 第三页保留置底，因为气泡是不定高度的 */
     }
-
-    /* TabBar */
-    .tab-bar {
-      height: calc(50px + env(safe-area-inset-bottom));
-      padding-bottom: env(safe-area-inset-bottom);
-      border-top: 0.5px solid #c6c6c8;
-      display: flex;
-      background: rgba(255,255,255,0.9);
-      backdrop-filter: blur(20px); /* 毛玻璃效果 */
-      justify-content: space-around;
-      align-items: center;
-      position: fixed;
-      bottom: 0;
-      width: 100%;
-      z-index: 200;
-    }
-    .tab-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      font-size: 11px;
-      color: #999;
-      width: 60px;
-      padding-top: 5px;
-    }
-    .tab-item.active { color: var(--active-blue); }
-    .tab-icon { font-size: 22px; margin-bottom: 2px; }
-
-    /* Main Content Padding Fix for TabBar */
-    .main-content { padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
-
-    #feedbackDisplay {
-        height: 24px; 
-        font-size: 16px; 
-        text-align: center; 
-        margin-top: 15px;
-        font-weight: 700;
-        letter-spacing: 1px;
-    }
-    .correct { color: #34c759; }
-    .wrong { color: #ff3b30; }
 
     #fileInput { display: none; }
   </style>
 </head>
 <body>
 
-  <div class="nav-bar">
-    <span id="pageTitle">单词拼写</span>
+  <div class="top-nav">
+    <div class="nav-item active" onclick="switchPage('drill')">
+      <span class="nav-icon">📝</span>
+      <span>练习</span>
+    </div>
+    <div class="nav-item" onclick="switchPage('input')">
+      <span class="nav-icon">➕</span>
+      <span>录入</span>
+    </div>
+    <div class="nav-item" onclick="switchPage('errors')">
+      <span class="nav-icon">🧼</span>
+      <span>错题墙</span>
+    </div>
   </div>
 
-  <div class="main-content">
+  <div class="main-content" id="mainContainer">
 
     <div id="page-drill" class="page active">
       
@@ -293,21 +302,21 @@
           <span id="groupBtnLabel">选择分组</span>
           <select id="groupSelectorSelect"></select>
         </div>
-        <button class="pill-btn" id="btnDelGroup">删分组</button>
-        <button class="pill-btn" id="btnSmartReview">复习 <span id="reviewCount" style="display:none;font-weight:800;margin-left:4px"></span></button>
+        <button class="pill-btn" id="btnDelGroup">删组</button>
+        <button class="pill-btn" id="btnSmartReview">复习 <span id="reviewCount" style="display:none;font-weight:800;margin-left:3px"></span></button>
       </div>
 
       <div class="prompt-area" id="definitionDisplay">
-        请选择分组开始
+        请选择分组
       </div>
 
       <div class="input-wrapper">
-        <input type="text" id="wordInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="在此输入" />
+        <input type="text" id="wordInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="" />
         <div id="feedbackDisplay"></div>
       </div>
 
       <div class="bottom-actions">
-        <button class="bottom-btn" id="btnDeleteWord" style="background:var(--danger); color:white; box-shadow: 0 4px 12px rgba(255,59,48,0.3);">🗑️ 删除</button>
+        <button class="bottom-btn" id="btnDeleteWord" style="background:var(--danger); box-shadow:0 3px 8px rgba(255,59,48,0.2)">🗑️ 删除</button>
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary)">🚀 穿越</button>
       </div>
       
@@ -316,7 +325,7 @@
 
     <div id="page-input" class="page">
       <div class="input-page-container">
-        <textarea id="rawInput" placeholder="在此粘贴单词...&#10;格式：单词,定义&#10;例如：&#10;apple,苹果&#10;banana,香蕉"></textarea>
+        <textarea id="rawInput" placeholder="在此粘贴...&#10;格式：单词,定义"></textarea>
         <button class="save-btn" id="btnConfirmInput">保存到新分组</button>
       </div>
     </div>
@@ -331,24 +340,9 @@
 
   </div>
 
-  <div class="tab-bar">
-    <div class="tab-item active" onclick="switchPage('drill')">
-      <span class="tab-icon">📝</span>
-      <span>练习</span>
-    </div>
-    <div class="tab-item" onclick="switchPage('input')">
-      <span class="tab-icon">➕</span>
-      <span>录入</span>
-    </div>
-    <div class="tab-item" onclick="switchPage('errors')">
-      <span class="tab-icon">🧼</span>
-      <span>错题墙</span>
-    </div>
-  </div>
-
 <script>
   // --- 数据核心 ---
-  const REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30, 60, 90, 120];
+  const REVIEW_INTERVALS = [0,1, 2, 4, 7, 15, 30, 60, 90, 120];
   let wordLibrary = {}; 
   let errorBook = []; 
   let currentQueue = [];
@@ -358,8 +352,11 @@
   let selectedErrorWord = null;
   let isReviewMode = false;
 
+  const pages = ['drill', 'input', 'errors'];
+  let currentPageIndex = 0;
+
   function loadData() {
-    const data = localStorage.getItem("myCardsData_Max");
+    const data = localStorage.getItem("myCardsData_Compact_V2");
     if (data) {
       const parsed = JSON.parse(data);
       wordLibrary = parsed.wordLibrary || {};
@@ -377,20 +374,20 @@
 
   function saveData() {
     const data = { wordLibrary, errorBook, currentQueue, currentGroupName, isReviewMode, activeWord };
-    localStorage.setItem("myCardsData_Max", JSON.stringify(data));
+    localStorage.setItem("myCardsData_Compact_V2", JSON.stringify(data));
     updateReviewCount();
   }
 
+  // --- 切换页面逻辑 ---
   function switchPage(pageName) {
+    const idx = pages.indexOf(pageName);
+    if(idx !== -1) currentPageIndex = idx;
+
     document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.tab-item').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     
     document.getElementById('page-' + pageName).classList.add('active');
-    
-    const idx = ['drill', 'input', 'errors'].indexOf(pageName);
-    if(document.querySelectorAll('.tab-item')[idx]) {
-        document.querySelectorAll('.tab-item')[idx].classList.add('active');
-    }
+    document.querySelectorAll('.nav-item')[idx].classList.add('active');
 
     if (pageName === 'drill') {
       updateGroupDropdown();
@@ -401,8 +398,43 @@
     }
   }
 
-  // --- Page 1 逻辑 ---
+  // --- 滑动切换逻辑 ---
+  let touchStartX = 0;
+  let touchStartY = 0;
 
+  document.addEventListener('touchstart', e => {
+    touchStartX = e.changedTouches[0].screenX;
+    touchStartY = e.changedTouches[0].screenY;
+  }, {passive: true});
+
+  document.addEventListener('touchend', e => {
+    const touchEndX = e.changedTouches[0].screenX;
+    const touchEndY = e.changedTouches[0].screenY;
+    handleSwipe(touchStartX, touchEndX, touchStartY, touchEndY);
+  }, {passive: true});
+
+  function handleSwipe(startX, endX, startY, endY) {
+    const diffX = endX - startX;
+    const diffY = endY - startY;
+
+    if (Math.abs(diffX) > Math.abs(diffY)) { // 水平滑动
+      if (Math.abs(diffX) > 50) { // 阈值
+        if (diffX < 0) {
+          // 左滑 -> 下一页
+          if (currentPageIndex < pages.length - 1) {
+            switchPage(pages[currentPageIndex + 1]);
+          }
+        } else {
+          // 右滑 -> 上一页
+          if (currentPageIndex > 0) {
+            switchPage(pages[currentPageIndex - 1]);
+          }
+        }
+      }
+    }
+  }
+
+  // --- Page 1 逻辑 ---
   function updateGroupDropdown() {
     const selector = document.getElementById("groupSelectorSelect");
     const label = document.getElementById("groupBtnLabel");
@@ -415,7 +447,7 @@
     }
     if (!isReviewMode && currentGroupName && wordLibrary[currentGroupName]) {
       selector.value = currentGroupName;
-      label.textContent = currentGroupName.length > 6 ? currentGroupName.substring(0,5)+'...' : currentGroupName;
+      label.textContent = currentGroupName.length > 5 ? currentGroupName.substring(0,4)+'..' : currentGroupName;
     } else {
       label.textContent = "选择分组";
     }
@@ -426,7 +458,7 @@
     if (!name) return;
     isReviewMode = false;
     currentGroupName = name;
-    document.getElementById("groupBtnLabel").textContent = name;
+    updateGroupDropdown();
     currentQueue = [...wordLibrary[name]];
     activeWord = null;
     pickNextWord();
@@ -456,11 +488,11 @@
         return (now - w.lastReview) >= (intervalDays * 86400000);
     });
     if (dueWords.length === 0) {
-        alert("今日暂无需要复习的单词");
+        alert("暂无复习任务");
         return;
     }
     isReviewMode = true;
-    currentGroupName = "复习模式";
+    currentGroupName = "复习中";
     document.getElementById("groupBtnLabel").textContent = "复习中";
     currentQueue = [...dueWords];
     activeWord = null;
@@ -474,7 +506,7 @@
 
     if (currentQueue.length === 0) {
       activeWord = null;
-      defDisplay.textContent = "🎉 本组完成！";
+      defDisplay.textContent = "🎉 完成！";
       input.value = "";
       input.disabled = true;
       feedback.textContent = "";
@@ -482,7 +514,6 @@
       return;
     }
     input.disabled = false;
-    // 随机取词
     const idx = Math.floor(Math.random() * currentQueue.length);
     activeWord = currentQueue[idx];
     
@@ -498,7 +529,7 @@
     if (activeWord) {
       defDisplay.textContent = activeWord.def;
     } else if (!currentGroupName) {
-        defDisplay.textContent = "👆 请先选择分组";
+        defDisplay.textContent = "请选择分组";
     }
   }
 
@@ -511,7 +542,6 @@
       if (val.toLowerCase() === activeWord.word.toLowerCase()) {
         feedback.textContent = "✔ 正确";
         feedback.className = "correct";
-        // 拼对移除
         currentQueue = currentQueue.filter(w => w.word !== activeWord.word);
         
         const errIdx = errorBook.findIndex(w => w.word === activeWord.word);
@@ -543,27 +573,21 @@
     }
   });
 
-  // --- 核心修改：删除当前单词逻辑 ---
   document.getElementById("btnDeleteWord").onclick = () => {
     if (!activeWord) return;
-    
     const wordToDelete = activeWord.word;
-    
-    // 1. 从当前队列删除 (UI立即生效)
+
     currentQueue = currentQueue.filter(w => w.word !== wordToDelete);
-    
-    // 2. 从永久库删除 (如果是普通模式)
+
     if (!isReviewMode && currentGroupName && wordLibrary[currentGroupName]) {
         wordLibrary[currentGroupName] = wordLibrary[currentGroupName].filter(w => w.word !== wordToDelete);
     }
-    
-    // 3. 反馈与下一个
+
     const feedback = document.getElementById("feedbackDisplay");
     feedback.textContent = "🗑️ 已删除";
-    feedback.className = "wrong"; // 用红色显示
+    feedback.className = "wrong";
     
     saveData();
-    // 稍微延迟一下再跳下一个，让用户知道删成功了
     setTimeout(() => {
         pickNextWord();
     }, 300);
@@ -593,7 +617,7 @@
   
   document.getElementById("btnDelGroup").onclick = () => {
       if(!currentGroupName || isReviewMode) return;
-      if(confirm(`确定删除分组 "${currentGroupName}"？`)) {
+      if(confirm(`删除分组 "${currentGroupName}"？`)) {
           delete wordLibrary[currentGroupName];
           currentGroupName = "";
           currentQueue = [];
@@ -615,7 +639,7 @@
   document.getElementById("btnConfirmInput").onclick = () => {
       const raw = document.getElementById("rawInput").value;
       const list = parseText(raw);
-      if(list.length === 0) return alert("格式错误或为空");
+      if(list.length === 0) return alert("内容为空");
       
       const now = new Date();
       const name = `${String(now.getDate()).padStart(2,'0')}日_${String(now.getHours()).padStart(2,'0')}时${String(now.getMinutes()).padStart(2,'0')}分`;
@@ -623,13 +647,12 @@
       wordLibrary[name] = list;
       document.getElementById("rawInput").value = "";
       saveData();
-      alert(`已保存 ${list.length} 个单词`);
+      alert(`已保存: ${name}`);
       switchPage('drill');
       
       isReviewMode = false;
       currentGroupName = name;
       updateGroupDropdown();
-      document.getElementById("groupBtnLabel").textContent = name;
       currentQueue = [...list];
       activeWord = null;
       pickNextWord();
@@ -642,7 +665,7 @@
     selectedErrorWord = null;
     
     if (errorBook.length === 0) {
-        container.innerHTML = "<div style='width:100%;text-align:center;color:#999;margin-top:40px;'>暂无错题，真棒！</div>";
+        container.innerHTML = "<div style='width:100%;text-align:center;color:#999;margin-top:20px;'>暂无错题</div>";
         return;
     }
 
@@ -662,7 +685,7 @@
   }
 
   document.getElementById("btnErrorDelete").onclick = () => {
-      if(!selectedErrorWord) return alert("请点击气泡选中一个单词");
+      if(!selectedErrorWord) return alert("请先选中");
       errorBook = errorBook.filter(w => w.word !== selectedErrorWord.word);
       saveData();
       renderBubbleWall();
@@ -670,7 +693,7 @@
   };
 
   document.getElementById("btnErrorTravel").onclick = () => {
-      if(!selectedErrorWord) return alert("请点击气泡选中一个单词");
+      if(!selectedErrorWord) return alert("请先选中");
       doTravel(selectedErrorWord.word);
   };
 
