@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vocab-app-cache-v1.8'; // 更新版本号！
+const CACHE_NAME = 'vocab-app-cache-v1.9'; // 更新版本号！
 const urlsToCache = [
   './',
   './index.html',
@@ -35,6 +35,7 @@ self.addEventListener('fetch', event => {
     caches.match(event.request).then(response => response || fetch(event.request))
   );
 });
+
 
 
 
