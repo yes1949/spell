@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Final V3.1</title>
+  <title>记忆原型 Final V2.8</title>
   <style>
     :root {
       --primary: #5ac8fa;
@@ -272,16 +272,12 @@
       width: 100%;
       display: flex;
       flex-wrap: wrap;
-      /* 修改点: 改为flex-start让内容从上往下堆叠，配合overflow-y实现自然滚动 */
       align-content: flex-start; 
       gap: 10px;
       justify-content: center;
-      /* 修改点: 开启垂直滚动 */
       overflow-y: auto; 
-      /* 修改点: 增加内边距，优化滚动体验 */
       padding: 10px;
       padding-bottom: 20px;
-      /* 修改点: iOS惯性滚动 */
       -webkit-overflow-scrolling: touch; 
     }
 
@@ -309,7 +305,6 @@
       justify-content: space-between;
       gap: 15px;
       padding-bottom: 10px;
-      /* 保持在底部 */
       flex-shrink: 0;
       margin-top: 10px; 
     }
@@ -361,7 +356,7 @@
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary)">🚀 穿越</button>
       </div>
       
-      <div class="version-display">Version: 3.1 (Scrollable Wall)</div>
+      <div class="version-display">Version: 3.2 (Hard Delete)</div>
 
       <input type="file" id="fileInput" accept=".txt">
     </div>
@@ -883,10 +878,40 @@
       location.href = `eudic://dict/${selectedErrorWord.word}`;
   };
 
+  // 修改点：彻底删除逻辑
   document.getElementById("btnDeleteWord").onclick = () => {
     if (!activeWord) return;
-    handleCorrect(activeWord.word);
-    saveData(); pickNextWord();
+    if(!confirm(`确认彻底删除 "${activeWord.word}"？`)) return;
+
+    const w = activeWord.word;
+
+    // 1. 从当前队列移除
+    currentQueue = currentQueue.filter(x => x.word !== w);
+
+    // 2. 从重练Session移除
+    sessionMistakes = sessionMistakes.filter(x => x.word !== w);
+
+    // 3. 从错题本移除
+    errorBook = errorBook.filter(x => x.word !== w);
+
+    // 4. 从今日复习缓存移除
+    const tKey = getTodayKey();
+    let rList = JSON.parse(localStorage.getItem(tKey)||'[]');
+    let rCopy = JSON.parse(localStorage.getItem(tKey+'_copy')||'[]');
+    if(rList.some(x=>x.word===w)) localStorage.setItem(tKey, JSON.stringify(rList.filter(x=>x.word!==w)));
+    if(rCopy.some(x=>x.word===w)) localStorage.setItem(tKey+'_copy', JSON.stringify(rCopy.filter(x=>x.word!==w)));
+
+    // 5. 从原始分组和备份移除
+    if(currentGroupName && wordLibrary[currentGroupName]){
+        wordLibrary[currentGroupName] = wordLibrary[currentGroupName].filter(x => x.word !== w);
+    }
+    if(currentGroupName && wordLibrary_copy[currentGroupName]){
+        wordLibrary_copy[currentGroupName] = wordLibrary_copy[currentGroupName].filter(x => x.word !== w);
+    }
+
+    saveData();
+    updateReviewBadge(); 
+    pickNextWord();
   };
    
   document.getElementById("btnTravel").onclick = () => { 
