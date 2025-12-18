@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Final V2.6</title>
+  <title>记忆原型 Final V3.1</title>
   <style>
     :root {
       --primary: #5ac8fa;
@@ -14,7 +14,7 @@
       --bubble-bg: #81cafa;
       --btn-radius: 18px;
       --nav-height: 50px;
-      /* 修改点2: 定义页面整体下移的距离 */
+      /* 页面整体下移距离 */
       --page-offset: 2cm; 
     }
 
@@ -34,7 +34,6 @@
     /* --- 顶部导航栏 --- */
     .top-nav {
       position: fixed;
-      /* 修改点2: 顶部增加偏移量 */
       top: var(--page-offset);
       left: 0;
       width: 100%;
@@ -70,7 +69,7 @@
       display: flex;
       flex-direction: column;
       padding: 15px;
-      /* 修改点2: margin-top 需要包含导航栏高度 + 安全距离 + 页面偏移量 */
+      /* margin-top 包含导航栏高度 + 安全距离 + 页面偏移量 */
       margin-top: calc(var(--nav-height) + env(safe-area-inset-top) + var(--page-offset));
       padding-bottom: env(safe-area-inset-bottom); 
       overflow-y: hidden;
@@ -242,7 +241,7 @@
       color: #333;
     }
 
-    /* 修改点3: 新增的分组名输入框样式 */
+    /* 分组名输入框样式 */
     #groupNameInput {
       width: 100%;
       border: none;
@@ -273,11 +272,17 @@
       width: 100%;
       display: flex;
       flex-wrap: wrap;
-      align-content: center;
+      /* 修改点: 改为flex-start让内容从上往下堆叠，配合overflow-y实现自然滚动 */
+      align-content: flex-start; 
       gap: 10px;
       justify-content: center;
-      overflow: hidden;
+      /* 修改点: 开启垂直滚动 */
+      overflow-y: auto; 
+      /* 修改点: 增加内边距，优化滚动体验 */
+      padding: 10px;
       padding-bottom: 20px;
+      /* 修改点: iOS惯性滚动 */
+      -webkit-overflow-scrolling: touch; 
     }
 
     .bubble {
@@ -304,7 +309,9 @@
       justify-content: space-between;
       gap: 15px;
       padding-bottom: 10px;
-      margin-top: auto; 
+      /* 保持在底部 */
+      flex-shrink: 0;
+      margin-top: 10px; 
     }
 
     #fileInput { display: none; }
@@ -354,7 +361,7 @@
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary)">🚀 穿越</button>
       </div>
       
-      <div class="version-display">Version: 2.7 (Offset+IgnoreSym)</div>
+      <div class="version-display">Version: 3.1 (Scrollable Wall)</div>
 
       <input type="file" id="fileInput" accept=".txt">
     </div>
@@ -701,10 +708,8 @@
   }
 
   // --- 交互: 回车 ---
-  // 修改点1: 拼写时忽略符号
+  // 拼写时忽略符号
   const normalizeText = (str) => {
-    // 移除所有非字母和非数字的字符（保留中文），并转为小写
-    // 如果只需保留英文数字，正则可改为 /[^a-zA-Z0-9]/g
     return str.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, "").toLowerCase();
   };
 
@@ -773,7 +778,7 @@
       const list = parseText(raw);
       if(list.length === 0) return; 
       
-      // 修改点3: 获取分组名逻辑
+      // 获取分组名逻辑
       const customName = document.getElementById("groupNameInput").value.trim();
       let name;
       
@@ -785,7 +790,7 @@
       }
 
       document.getElementById("rawInput").value = "";
-      document.getElementById("groupNameInput").value = ""; // 清空分组名输入框
+      document.getElementById("groupNameInput").value = ""; 
       handleImportWords(name, list);
       switchPage('drill');
   }
