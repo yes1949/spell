@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Final V2.5</title>
+  <title>记忆原型 Final V2.6</title>
   <style>
     :root {
       --primary: #5ac8fa;
@@ -14,6 +14,8 @@
       --bubble-bg: #81cafa;
       --btn-radius: 18px;
       --nav-height: 50px;
+      /* 修改点2: 定义页面整体下移的距离 */
+      --page-offset: 2cm; 
     }
 
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -32,7 +34,8 @@
     /* --- 顶部导航栏 --- */
     .top-nav {
       position: fixed;
-      top: 0;
+      /* 修改点2: 顶部增加偏移量 */
+      top: var(--page-offset);
       left: 0;
       width: 100%;
       height: calc(var(--nav-height) + env(safe-area-inset-top));
@@ -67,7 +70,8 @@
       display: flex;
       flex-direction: column;
       padding: 15px;
-      margin-top: calc(var(--nav-height) + env(safe-area-inset-top));
+      /* 修改点2: margin-top 需要包含导航栏高度 + 安全距离 + 页面偏移量 */
+      margin-top: calc(var(--nav-height) + env(safe-area-inset-top) + var(--page-offset));
       padding-bottom: env(safe-area-inset-bottom); 
       overflow-y: hidden;
     }
@@ -131,7 +135,7 @@
       color: #1c1c1e;
       border-radius: 16px;
       padding: 12px 15px;
-      min-height: 60px;   
+      min-height: 60px;    
       max-height: 100px; 
       display: flex;
       align-items: center;
@@ -142,13 +146,12 @@
       margin-bottom: 15px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.05);
       flex-shrink: 0;
-      transition: all 0.3s ease; /* Add transition for color change */
+      transition: all 0.3s ease;
     }
 
-    /* New class for Retry Mode (Red Text) */
     .prompt-area.retry-mode {
         color: #d32f2f;
-        background-color: #ffebee; /* Light red background */
+        background-color: #ffebee;
         border: 1px solid #ffcdd2;
     }
 
@@ -239,6 +242,23 @@
       color: #333;
     }
 
+    /* 修改点3: 新增的分组名输入框样式 */
+    #groupNameInput {
+      width: 100%;
+      border: none;
+      border-bottom: 2px solid #e5e5ea;
+      background: transparent;
+      font-size: 16px;
+      padding: 10px 5px;
+      margin-bottom: 20px;
+      outline: none;
+      text-align: center;
+      color: #333;
+      border-radius: 0;
+    }
+    #groupNameInput:focus { border-bottom-color: var(--active-blue); }
+    #groupNameInput::placeholder { color: #aaa; font-size: 14px; }
+
     .save-btn {
       width: 100%;
       height: 48px;
@@ -253,7 +273,7 @@
       width: 100%;
       display: flex;
       flex-wrap: wrap;
-      align-content: center; /* 中间偏下 */
+      align-content: center;
       gap: 10px;
       justify-content: center;
       overflow: hidden;
@@ -334,7 +354,7 @@
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary)">🚀 穿越</button>
       </div>
       
-      <div class="version-display">Version: 2.9</div>
+      <div class="version-display">Version: 2.7 (Offset+IgnoreSym)</div>
 
       <input type="file" id="fileInput" accept=".txt">
     </div>
@@ -342,6 +362,7 @@
     <div id="page-input" class="page">
       <div class="input-page-container">
         <textarea id="rawInput" placeholder="在此粘贴...&#10;格式：单词,定义"></textarea>
+        <input type="text" id="groupNameInput" placeholder="输入分组名 (可选，留空自动命名)" />
         <button class="save-btn" id="btnConfirmInput">保存到新分组</button>
       </div>
     </div>
@@ -358,18 +379,18 @@
 <script>
   // --- 配置与数据结构 ---
   const REVIEW_INTERVALS = [0, 1, 2, 4, 7, 15, 30, 60, 90, 120];
-  
+   
   let wordLibrary = {};      
   let wordLibrary_copy = {}; 
   let errorBook = [];        
-  
+   
   let currentQueue = [];     
   let currentGroupName = ""; 
   let isReviewMode = false;  
   let activeWord = null;     
   let selectedErrorWord = null;
 
-  // NEW in V2.5: Session Retry Variables
+  // Session Retry Variables
   let sessionMistakes = [];
   let isRetryMode = false;
 
@@ -430,7 +451,6 @@
       isReviewMode = parsed.isReviewMode || false;
       activeWord = parsed.activeWord || null;
 
-      // Reset retry state on reload (optional but safer)
       sessionMistakes = [];
       isRetryMode = false;
     }
@@ -531,7 +551,7 @@
             currentQueue.push(wordObj);
         }
     } 
-    // NEW: Capture mistake for session retry (only if NOT in review/retry mode)
+    // Capture mistake for session retry
     else if (!isRetryMode) {
         if (!sessionMistakes.some(w => w.word === wordObj.word)) {
             sessionMistakes.push(wordObj);
@@ -541,7 +561,6 @@
 
   // --- 逻辑：复习按钮 ---
   document.getElementById("btnSmartReview").onclick = () => {
-    // Clear session variables
     sessionMistakes = [];
     isRetryMode = false;
 
@@ -587,7 +606,6 @@
          item.lockDay = todayStr;
     }
 
-    // Remove from current queue (memory)
     currentQueue = currentQueue.filter(w => w.word !== wordStr);
 
     if (isReviewMode) {
@@ -596,12 +614,10 @@
         list = list.filter(w => w.word !== wordStr);
         localStorage.setItem(todayKey, JSON.stringify(list));
     } else if (!isRetryMode) {
-        // Normal mode: remove from library
         if (currentGroupName && wordLibrary[currentGroupName]) {
             wordLibrary[currentGroupName] = wordLibrary[currentGroupName].filter(w => w.word !== wordStr);
         }
     }
-    // Note: In retry mode, we don't delete from library again (already deleted in normal pass)
   }
 
   // --- UI: 进度条 ---
@@ -617,7 +633,6 @@
         const done = total - currentQueue.length; 
         disp.textContent = `${done + 1} / ${total}`;
     } else if (isRetryMode) {
-        // Retry mode progress
         disp.textContent = `错题重练: ${currentQueue.length}`;
     } else {
         if (!currentGroupName || !wordLibrary_copy[currentGroupName]) {
@@ -635,26 +650,23 @@
     const input = document.getElementById("wordInput");
 
     if (currentQueue.length === 0) {
-      // Logic 1: Trigger Retry Mode
       if (!isReviewMode && !isRetryMode && sessionMistakes.length > 0) {
           isRetryMode = true;
           currentQueue = [...sessionMistakes];
-          sessionMistakes = []; // Clear to prevent loops
-          pickNextWord(); // Start retry immediately
+          sessionMistakes = []; 
+          pickNextWord(); 
           return;
       }
 
-      // Really finished
       activeWord = null;
       defDisplay.textContent = isRetryMode ? "⭕️ 错题重练完成！" : "🎉 完成！";
       
-      // Reset UI style
       if (defDisplay.classList.contains('retry-mode')) {
           defDisplay.classList.remove('retry-mode');
       }
       
       input.value = ""; input.disabled = true;
-      isRetryMode = false; // Reset mode
+      isRetryMode = false; 
       
       updateProgressBar();
       saveData();
@@ -675,7 +687,6 @@
     
     if (activeWord) {
         defDisplay.textContent = activeWord.def;
-        // Red Text for Retry Mode
         if (isRetryMode) {
             defDisplay.classList.add("retry-mode");
         } else {
@@ -690,16 +701,23 @@
   }
 
   // --- 交互: 回车 ---
+  // 修改点1: 拼写时忽略符号
+  const normalizeText = (str) => {
+    // 移除所有非字母和非数字的字符（保留中文），并转为小写
+    // 如果只需保留英文数字，正则可改为 /[^a-zA-Z0-9]/g
+    return str.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, "").toLowerCase();
+  };
+
   document.getElementById("wordInput").addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       if (!activeWord) return;
       const val = e.target.value.trim();
 
-      if (val.toLowerCase() === activeWord.word.toLowerCase()) {
+      // 使用 normalizeText 进行比较
+      if (normalizeText(val) === normalizeText(activeWord.word)) {
         handleCorrect(activeWord.word);
         pickNextWord();
       } else {
-        // Clear immediately
         e.target.value = ""; 
 
         const originalDef = activeWord.def;
@@ -714,7 +732,7 @@
 
         setTimeout(() => {
             defDisplay.textContent = originalDef;
-            defDisplay.style.color = ""; // Remove inline style to let class take over
+            defDisplay.style.color = ""; 
         }, 1200);
       }
     }
@@ -751,11 +769,23 @@
 
   // --- 交互: 录入 ---
   document.getElementById("btnConfirmInput").onclick = () => {
-      const raw = document.getElementById("rawInput").value; const list = parseText(raw);
+      const raw = document.getElementById("rawInput").value; 
+      const list = parseText(raw);
       if(list.length === 0) return; 
-      const now = new Date();
-      const name = `${String(now.getDate()).padStart(2,'0')}日_${String(now.getHours()).padStart(2,'0')}时${String(now.getMinutes()).padStart(2,'0')}分`;
+      
+      // 修改点3: 获取分组名逻辑
+      const customName = document.getElementById("groupNameInput").value.trim();
+      let name;
+      
+      if (customName) {
+          name = customName;
+      } else {
+          const now = new Date();
+          name = `${String(now.getDate()).padStart(2,'0')}日_${String(now.getHours()).padStart(2,'0')}时${String(now.getMinutes()).padStart(2,'0')}分`;
+      }
+
       document.getElementById("rawInput").value = "";
+      document.getElementById("groupNameInput").value = ""; // 清空分组名输入框
       handleImportWords(name, list);
       switchPage('drill');
   }
@@ -767,18 +797,16 @@
       }).filter(x => x);
   }
 
-  // --- 交互: 选组 (Logic 2: Auto-Refill) ---
+  // --- 交互: 选组 ---
   document.getElementById("groupSelectorSelect").addEventListener("change", (e) => {
     const name = e.target.value; if (!name) return;
     
-    // Reset states
     isReviewMode = false;
     isRetryMode = false;
     sessionMistakes = [];
 
     currentGroupName = name;
 
-    // Check if empty, refill from backup
     if (wordLibrary[name] && wordLibrary[name].length === 0) {
         if (wordLibrary_copy[name] && wordLibrary_copy[name].length > 0) {
             wordLibrary[name] = JSON.parse(JSON.stringify(wordLibrary_copy[name]));
@@ -855,7 +883,7 @@
     handleCorrect(activeWord.word);
     saveData(); pickNextWord();
   };
-  
+   
   document.getElementById("btnTravel").onclick = () => { 
       if (activeWord) location.href = `eudic://dict/${activeWord.word}`; 
   };
