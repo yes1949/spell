@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Final V4.2</title>
+  <title>记忆原型 Final V4.3</title>
   <style>
     :root {
       --primary: #5ac8fa;
@@ -194,7 +194,7 @@
     .bottom-actions {
       display: flex;
       justify-content: space-between;
-      gap: 15px;
+      gap: 10px; /* 缩小间距以容纳3个按钮 */
       margin-top: 15px;
     }
     
@@ -202,8 +202,9 @@
       flex: 1;
       height: 44px;
       border-radius: 22px;
-      font-size: 15px;
+      font-size: 14px; /* 稍微缩小字号确保一行放得下 */
       box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+      white-space: nowrap;
     }
 
     /* 版本号样式 */
@@ -211,7 +212,7 @@
       text-align: center;
       font-size: 10px;
       color: #c7c7cc;
-      margin-top: 10px;
+      margin-top: 20px;
       margin-bottom: 10px;
     }
 
@@ -347,7 +348,7 @@
         <button class="pill-btn" id="btnDelGroup">删组</button>
         <button class="pill-btn" id="btnClearAll" style="background:var(--danger)">清空</button>
         <button class="pill-btn" id="btnSmartReview">复习 <span id="reviewCount" style="display:none;font-weight:800;margin-left:3px;color:#fff000"></span></button>
-        <button class="pill-btn" id="btnReviewAll" style="background:#ff9500">全部复习</button>
+        <button class="pill-btn" id="btnReviewAll" style="background:#ff9500">全部</button>
       </div>
 
       <div class="prompt-area" id="definitionDisplay">请选择分组</div>
@@ -363,11 +364,11 @@
 
       <div class="bottom-actions">
         <button class="bottom-btn" id="btnDeleteWord" style="background:var(--danger); box-shadow:0 3px 8px rgba(255,59,48,0.2)">🗑️ 删除</button>
-        <button class="bottom-btn" id="btnTravel" style="background:var(--primary)">🚀 穿越</button>
+        <button class="bottom-btn" id="btnCopyToday" style="background:#ff9500; box-shadow:0 3px 8px rgba(255,149,0,0.2)">📋 复制错题</button>
+        <button class="bottom-btn" id="btnTravel" style="background:var(--primary); box-shadow:0 3px 8px rgba(90,200,250,0.2)">🚀 穿越</button>
       </div>
-      <button class="bottom-btn" id="btnCopyToday" style="background:#ff9500; width:100%; margin-top:15px; box-shadow:0 3px 8px rgba(255,149,0,0.2)">📋 复制今日错题</button>
       
-      <div class="version-display">Version: 4.5 (All Today Errors Highlighted)</div>
+      <div class="version-display">Version: 4.6 </div>
     </div>
 
     <div id="page-input" class="page">
@@ -956,11 +957,21 @@
   }
 
   function updateReviewBadge() {
+    // 今日复习数
     const dueWords = calcDueWords();
     const count = dueWords.length;
     const countSpan = document.getElementById("reviewCount");
     if (count > 0) { countSpan.style.display = "inline"; countSpan.textContent = count; }
     else { countSpan.style.display = "none"; }
+
+    // 全部错题数
+    const totalErrors = errorBook.length;
+    const reviewAllBtn = document.getElementById("btnReviewAll");
+    if (totalErrors > 0) {
+        reviewAllBtn.innerHTML = `全部 <span style="font-weight:800;margin-left:3px;color:#fff000">${totalErrors}</span>`;
+    } else {
+        reviewAllBtn.textContent = "全部";
+    }
   }
 
   // --- Page 3: 错题墙 ---
@@ -975,7 +986,6 @@
         bubble.className = "bubble"; 
         
         // 当日拼写或复习产生的错题统一标红
-        // 使用新增的 lastMistakeDate 进行精准判断，兼容旧数据的退化判断(lockDay === todayStr && stage === 0)
         const isTodayMistake = item.lastMistakeDate === todayStr || (!item.lastMistakeDate && item.lockDay === todayStr && item.stage === 0);
         if (isTodayMistake) {
             bubble.classList.add("today-error");
@@ -1034,7 +1044,6 @@
       const todayReviews = [];
 
       errorBook.forEach(item => {
-          // 同样的兼容逻辑判断是否是今日错题
           const isTodayMistake = item.lastMistakeDate === todayStr || (!item.lastMistakeDate && item.lockDay === todayStr && item.stage === 0);
           if (isTodayMistake) {
               if (item.lastMistakeMode === 'review') {
