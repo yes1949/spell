@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Final V4.0</title>
+  <title>记忆原型 Final V4.2</title>
   <style>
     :root {
       --primary: #5ac8fa;
@@ -298,11 +298,11 @@
       box-shadow: 0 2px 8px rgba(0,122,255,0.4);
     }
     
-    /* 当日拼写错题标红 */
-    .bubble.today-drill-error {
+    /* 当日错题（拼写+复习）标红 */
+    .bubble.today-error {
       background: var(--danger);
     }
-    .bubble.today-drill-error.selected {
+    .bubble.today-error.selected {
       background: #cc0000;
       box-shadow: 0 2px 8px rgba(255,59,48,0.4);
     }
@@ -367,7 +367,7 @@
       </div>
       <button class="bottom-btn" id="btnCopyToday" style="background:#ff9500; width:100%; margin-top:15px; box-shadow:0 3px 8px rgba(255,149,0,0.2)">📋 复制今日错题</button>
       
-      <div class="version-display">Version: 4.5 (Auto-Next & Clear All & Copy)</div>
+      <div class="version-display">Version: 4.5 (All Today Errors Highlighted)</div>
     </div>
 
     <div id="page-input" class="page">
@@ -550,11 +550,14 @@
         existing.stage = 0; 
         existing.lockDay = todayStr;
         existing.lastMistakeMode = mistakeMode;
+        // 专门记录该单词最后一次答错的日期
+        existing.lastMistakeDate = todayStr; 
     } else {
         errorBook.push({
             word: wordObj.word, def: wordObj.def, 
             lastReview: now, stage: 0, lockDay: todayStr,
-            lastMistakeMode: mistakeMode
+            lastMistakeMode: mistakeMode,
+            lastMistakeDate: todayStr 
         });
     }
 
@@ -971,9 +974,11 @@
         const bubble = document.createElement("div"); 
         bubble.className = "bubble"; 
         
-        // 当日拼写错误标红处理（排除复习产生的错题）
-        if (item.lockDay === todayStr && item.lastMistakeMode !== 'review') {
-            bubble.classList.add("today-drill-error");
+        // 当日拼写或复习产生的错题统一标红
+        // 使用新增的 lastMistakeDate 进行精准判断，兼容旧数据的退化判断(lockDay === todayStr && stage === 0)
+        const isTodayMistake = item.lastMistakeDate === todayStr || (!item.lastMistakeDate && item.lockDay === todayStr && item.stage === 0);
+        if (isTodayMistake) {
+            bubble.classList.add("today-error");
         }
 
         bubble.textContent = item.word;
@@ -1029,7 +1034,9 @@
       const todayReviews = [];
 
       errorBook.forEach(item => {
-          if (item.lockDay === todayStr) {
+          // 同样的兼容逻辑判断是否是今日错题
+          const isTodayMistake = item.lastMistakeDate === todayStr || (!item.lastMistakeDate && item.lockDay === todayStr && item.stage === 0);
+          if (isTodayMistake) {
               if (item.lastMistakeMode === 'review') {
                   todayReviews.push(item.word);
               } else {
