@@ -104,7 +104,7 @@
     .top-controls {
       display: flex;
       justify-content: space-between;
-      gap: 5px; /* 稍微减小间距以容纳更多按钮 */
+      gap: 5px; 
       margin-bottom: 10px;
     }
     
@@ -112,7 +112,7 @@
       flex: 1;
       height: 36px;
       border-radius: 18px;
-      font-size: 12px; /* 减小字号以容纳5个按钮 */
+      font-size: 12px; 
       position: relative;
       background: var(--primary);
       color: white;
@@ -187,8 +187,6 @@
       text-align: center;
       height: 16px;
       line-height: 16px;
-      margin-top: 8px;
-      margin-bottom: 2px;
       font-variant-numeric: tabular-nums; 
     }
 
@@ -197,8 +195,7 @@
       display: flex;
       justify-content: space-between;
       gap: 15px;
-      margin-top: 10px;
-      padding-bottom: 10px;
+      margin-top: 15px;
     }
     
     .bottom-btn {
@@ -214,7 +211,7 @@
       text-align: center;
       font-size: 10px;
       color: #c7c7cc;
-      margin-top: 5px;
+      margin-top: 10px;
       margin-bottom: 10px;
     }
 
@@ -300,11 +297,20 @@
       transform: scale(1.05);
       box-shadow: 0 2px 8px rgba(0,122,255,0.4);
     }
+    
+    /* 当日拼写错题标红 */
+    .bubble.today-drill-error {
+      background: var(--danger);
+    }
+    .bubble.today-drill-error.selected {
+      background: #cc0000;
+      box-shadow: 0 2px 8px rgba(255,59,48,0.4);
+    }
 
     .error-bottom-actions {
       display: flex;
       justify-content: space-between;
-      gap: 8px; /* 缩小间距以容纳3个按钮 */
+      gap: 8px; 
       padding-bottom: 10px;
       flex-shrink: 0;
       margin-top: 10px; 
@@ -350,14 +356,18 @@
         <input type="text" id="wordInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="" />
       </div>
       
-      <div id="progressDisplay" class="progress-text">0 / 0</div>
+      <div style="position: relative; width: 100%; text-align: center; margin-top: 12px; height: 16px;">
+        <div id="progressDisplay" class="progress-text" style="margin: 0; display: inline-block;">0 / 0</div>
+        <div id="sessionMistakesDisplay" class="progress-text" style="margin: 0; color: var(--danger); position: absolute; right: 15px; top: 0; display: none; font-weight: bold;">错: 0</div>
+      </div>
 
       <div class="bottom-actions">
         <button class="bottom-btn" id="btnDeleteWord" style="background:var(--danger); box-shadow:0 3px 8px rgba(255,59,48,0.2)">🗑️ 删除</button>
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary)">🚀 穿越</button>
       </div>
+      <button class="bottom-btn" id="btnCopyToday" style="background:#ff9500; width:100%; margin-top:15px; box-shadow:0 3px 8px rgba(255,149,0,0.2)">📋 复制今日错题</button>
       
-      <div class="version-display">Version: 4.0 (Auto-Next & Clear All)</div>
+      <div class="version-display">Version: 4.5 (Auto-Next & Clear All & Copy)</div>
     </div>
 
     <div id="page-input" class="page">
@@ -396,6 +406,7 @@
 
   // Session Retry Variables
   let sessionMistakes = [];
+  let sessionMistakeSet = new Set(); // 记录当次拼写的独立错题总数
   let isRetryMode = false;
 
   const pages = ['drill', 'input', 'errors'];
@@ -456,6 +467,7 @@
       activeWord = parsed.activeWord || null;
 
       sessionMistakes = [];
+      sessionMistakeSet.clear();
       isRetryMode = false;
     }
     checkDailyReviewInit();
@@ -510,6 +522,7 @@
       isReviewMode = false;
       isRetryMode = false;
       sessionMistakes = [];
+      sessionMistakeSet.clear();
       
       currentGroupName = name;
       currentQueue = [...wordLibrary[name]];
@@ -525,6 +538,10 @@
     const todayStr = getTodayStr();
     const todayKey = getTodayKey();
     const copyKey = todayKey + '_copy';
+    const mistakeMode = isReviewMode ? 'review' : 'drill';
+
+    // 记录当次拼写错题数 (不论重练与否，统计本次会话的唯一单词数)
+    sessionMistakeSet.add(wordObj.word);
 
     // 1. ErrorBook Update
     const existing = errorBook.find(w => w.word === wordObj.word);
@@ -532,10 +549,12 @@
         existing.lastReview = now;
         existing.stage = 0; 
         existing.lockDay = todayStr;
+        existing.lastMistakeMode = mistakeMode;
     } else {
         errorBook.push({
             word: wordObj.word, def: wordObj.def, 
-            lastReview: now, stage: 0, lockDay: todayStr
+            lastReview: now, stage: 0, lockDay: todayStr,
+            lastMistakeMode: mistakeMode
         });
     }
 
@@ -566,6 +585,7 @@
   // --- 逻辑：复习按钮 ---
   document.getElementById("btnSmartReview").onclick = () => {
     sessionMistakes = [];
+    sessionMistakeSet.clear();
     isRetryMode = false;
 
     const todayKey = getTodayKey();
@@ -593,7 +613,7 @@
     pickNextWord();
   };
 
-  // --- 逻辑：全部复习按钮 (新增) ---
+  // --- 逻辑：全部复习按钮 ---
   document.getElementById("btnReviewAll").onclick = () => {
     if (errorBook.length === 0) {
         document.getElementById("definitionDisplay").textContent = "错题墙暂无单词";
@@ -601,6 +621,7 @@
     }
     
     sessionMistakes = [];
+    sessionMistakeSet.clear();
     isRetryMode = false;
     isReviewMode = true;
     
@@ -645,9 +666,21 @@
     }
   }
 
-  // --- UI: 进度条 ---
+  // --- UI: 进度条与错题显示 ---
   function updateProgressBar() {
     const disp = document.getElementById("progressDisplay");
+    const errDisp = document.getElementById("sessionMistakesDisplay");
+    
+    // 渲染右侧的错题总数
+    if (errDisp) {
+        if (sessionMistakeSet.size > 0) {
+            errDisp.style.display = "inline-block";
+            errDisp.textContent = `错: ${sessionMistakeSet.size}`;
+        } else {
+            errDisp.style.display = "none";
+        }
+    }
+
     if (!activeWord) { disp.textContent = "0 / 0"; return; }
 
     if (isReviewMode) {
@@ -777,12 +810,10 @@
           if(list.length){
               const name = file.name.replace(/\.[^/.]+$/, "");
               handleImportWords(name, list);
-              // 导入完成后自动切回第一页
               switchPage('drill'); 
           }
       };
       reader.readAsText(file);
-      // 清空 input value 以便重复选择同一个文件
       e.target.value = ""; 
   }
 
@@ -809,6 +840,7 @@
               currentGroupName = nextGroupName;
               currentQueue = [...wordLibrary[nextGroupName]];
               sessionMistakes = [];
+              sessionMistakeSet.clear();
               isRetryMode = false;
               
               updateGroupDropdown();
@@ -818,6 +850,7 @@
               currentQueue = []; 
               activeWord = null;
               sessionMistakes = []; 
+              sessionMistakeSet.clear();
               isRetryMode = false;
               
               updateGroupDropdown(); 
@@ -838,6 +871,7 @@
          currentQueue = [];
          activeWord = null;
          sessionMistakes = [];
+         sessionMistakeSet.clear();
          isRetryMode = false;
          isReviewMode = false;
          
@@ -884,6 +918,7 @@
     isReviewMode = false;
     isRetryMode = false;
     sessionMistakes = [];
+    sessionMistakeSet.clear();
 
     currentGroupName = name;
 
@@ -930,8 +965,18 @@
     const container = document.getElementById("bubbleContainer"); container.innerHTML = ""; selectedErrorWord = null;
     if (errorBook.length === 0) { container.innerHTML = "<div style='width:100%;text-align:center;color:#999;margin-top:20px;'>暂无错题</div>"; return; }
     const sortedList = [...errorBook].sort((a, b) => b.lastReview - a.lastReview);
+    const todayStr = getTodayStr();
+
     sortedList.forEach(item => {
-        const bubble = document.createElement("div"); bubble.className = "bubble"; bubble.textContent = item.word;
+        const bubble = document.createElement("div"); 
+        bubble.className = "bubble"; 
+        
+        // 当日拼写错误标红处理（排除复习产生的错题）
+        if (item.lockDay === todayStr && item.lastMistakeMode !== 'review') {
+            bubble.classList.add("today-drill-error");
+        }
+
+        bubble.textContent = item.word;
         bubble.onclick = () => { document.querySelectorAll('.bubble').forEach(b => b.classList.remove('selected')); bubble.classList.add('selected'); selectedErrorWord = item; };
         container.appendChild(bubble);
     });
@@ -958,29 +1003,61 @@
       location.href = `eudic://dict/${selectedErrorWord.word}`;
   };
 
-  // 复制所有错题 (新增)
+  // 复制所有错题 (错题墙)
   document.getElementById("btnErrorCopyAll").onclick = () => {
       if (errorBook.length === 0) {
           alert("错题墙暂无单词可复制！");
           return;
       }
-      
       const wordsToCopy = errorBook.map(item => item.word).join("。");
       
-      // 使用兼容处理的剪贴板功能
       if (navigator.clipboard && window.isSecureContext) {
           navigator.clipboard.writeText(wordsToCopy).then(() => {
               alert("成功复制所有错题！\n格式示例：apple。banana。");
           }).catch(err => {
-              fallbackCopyTextToClipboard(wordsToCopy);
+              fallbackCopyTextToClipboard(wordsToCopy, "成功复制所有错题！\n格式示例：apple。banana。");
           });
       } else {
-          fallbackCopyTextToClipboard(wordsToCopy);
+          fallbackCopyTextToClipboard(wordsToCopy, "成功复制所有错题！\n格式示例：apple。banana。");
+      }
+  };
+
+  // 复制今日错题 (拼写主页)
+  document.getElementById("btnCopyToday").onclick = () => {
+      const todayStr = getTodayStr();
+      const todayDrills = [];
+      const todayReviews = [];
+
+      errorBook.forEach(item => {
+          if (item.lockDay === todayStr) {
+              if (item.lastMistakeMode === 'review') {
+                  todayReviews.push(item.word);
+              } else {
+                  todayDrills.push(item.word);
+              }
+          }
+      });
+
+      let text = "";
+      if (todayDrills.length > 0) text += `拼写：${todayDrills.join(",")}\n`;
+      if (todayReviews.length > 0) text += `复习：${todayReviews.join(",")}`;
+
+      if (!text) {
+          alert("今日暂无错题记录！");
+          return;
+      }
+
+      if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(text.trim()).then(() => {
+              alert("已成功复制今日错题！");
+          }).catch(() => fallbackCopyTextToClipboard(text.trim(), "已成功复制今日错题！"));
+      } else {
+          fallbackCopyTextToClipboard(text.trim(), "已成功复制今日错题！");
       }
   };
 
   // 兼容移动端和老旧浏览器的复制逻辑
-  function fallbackCopyTextToClipboard(text) {
+  function fallbackCopyTextToClipboard(text, successMsg = "复制成功！") {
       const textArea = document.createElement("textarea");
       textArea.value = text;
       // 防止滚动到底部
@@ -993,7 +1070,7 @@
       try {
           const successful = document.execCommand('copy');
           if(successful) {
-              alert("成功复制所有错题！\n格式示例：apple。banana。");
+              alert(successMsg);
           } else {
               alert("复制失败，请重试");
           }
@@ -1015,6 +1092,7 @@
 
     // 2. 从重练Session移除
     sessionMistakes = sessionMistakes.filter(x => x.word !== w);
+    sessionMistakeSet.delete(w);
 
     // 3. 从错题本移除
     errorBook = errorBook.filter(x => x.word !== w);
