@@ -350,7 +350,7 @@
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary); box-shadow:0 3px 8px rgba(90,200,250,0.2)">🚀 穿越</button>
       </div>
       
-      <div class="version-display">Version: 5.0 </div>
+      <div class="version-display">Version: 5.1 </div>
     </div>
 
     <div id="page-input" class="page">
@@ -644,14 +644,14 @@
 
   document.getElementById("btnCopyToday").onclick = () => {
       const todayStr = getTodayStr();
-      const todayWords = errorBook.filter(item => item.lastMistakeDate === todayStr).map(item => `${item.word}!。`);
+      const todayWords = errorBook.filter(item => item.lastMistakeDate === todayStr).map(item => `${item.word}！。`);
       if (todayWords.length === 0) { alert("今日暂无错题记录！"); return; }
       copyToClipboard(todayWords.join(""), "已复制今日错题！");
   };
 
   document.getElementById("btnErrorCopyAll").onclick = () => {
       if (errorBook.length === 0) return;
-      const allWords = errorBook.map(item => `${item.word}!。`).join("");
+      const allWords = errorBook.map(item => `${item.word}！。`).join("");
       copyToClipboard(allWords, "已复制所有错题！");
   };
 
