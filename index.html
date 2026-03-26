@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Final V6.0</title>
+  <title>记忆原型 Final V6.1</title>
   <style>
     :root {
       --primary: #5ac8fa;
@@ -386,16 +386,16 @@
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary); box-shadow:0 3px 8px rgba(90,200,250,0.2)">🚀 穿越</button>
       </div>
       
-      <div class="version-display">Version: 6.0 </div>
+      <div class="version-display">Version: 6.1 </div>
     </div>
 
     <div id="page-input" class="page">
       <div class="input-page-container">
         <textarea id="rawInput" placeholder="在此粘贴...&#10;格式：单词,定义"></textarea>
         <input type="text" id="groupNameInput" placeholder="输入分组名 (可选，留空自动命名)" />
-        <div style="display: flex; gap: 10px;">
-          <button class="save-btn" id="btnConfirmInput" style="flex:1;">保存到新分组</button>
+       <div style="display: flex; gap: 10px;">
           <button class="save-btn" id="btnImport" style="flex:1; background: #34c759;">导入TXT文件</button>
+          <button class="save-btn" id="btnConfirmInput" style="flex:1;">保存到新分组</button>
         </div>
         <input type="file" id="fileInput" accept=".txt" style="display: none;">
       </div>
@@ -488,7 +488,7 @@
   }
 
   function loadData() {
-    const data = localStorage.getItem("myCardsData_Final_V6.0");
+    const data = localStorage.getItem("myCardsData_Final_V6.1");
     if (data) {
       const parsed = JSON.parse(data);
       wordLibrary = parsed.wordLibrary || {};
@@ -525,7 +525,7 @@
 
   function saveData() {
     const data = { wordLibrary, wordLibrary_copy, errorBook, masterDict, currentQueue, currentGroupName, isReviewMode, activeWord };
-    localStorage.setItem("myCardsData_Final_V6.0", JSON.stringify(data));
+    localStorage.setItem("myCardsData_Final_V6.1", JSON.stringify(data));
     updateReviewBadge(); 
   }
 
