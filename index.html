@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Final V4.7</title>
+  <title>记忆原型 Final V6.0</title>
   <style>
     :root {
       --primary: #5ac8fa;
@@ -101,12 +101,13 @@
     .top-controls {
       display: flex;
       justify-content: space-between;
-      gap: 5px; 
+      gap: 4px; 
       margin-bottom: 10px;
     }
     
     .pill-btn {
       flex: 1;
+      min-width: 0;
       height: 36px;
       border-radius: 18px;
       font-size: 12px; 
@@ -233,7 +234,7 @@
       background: transparent;
       font-size: 16px;
       padding: 10px 5px;
-      margin-bottom: 20px;
+      margin-bottom: 15px;
       outline: none;
       text-align: center;
       color: #333;
@@ -242,7 +243,6 @@
     #groupNameInput:focus { border-bottom-color: var(--active-blue); }
 
     .save-btn {
-      width: 100%;
       height: 48px;
       font-size: 16px;
       border-radius: 24px;
@@ -300,6 +300,42 @@
       margin-left: 3px;
       color: #fff000;
     }
+
+    /* --- 新增：Toast 与 Modal 样式 --- */
+    #toast {
+      visibility: hidden;
+      min-width: 200px;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      text-align: center;
+      border-radius: 20px;
+      padding: 12px;
+      position: fixed;
+      z-index: 2000;
+      left: 50%;
+      bottom: 100px;
+      transform: translateX(-50%);
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    #toast.show { visibility: visible; opacity: 1; }
+
+    .modal-overlay {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5); z-index: 1500; align-items: center; justify-content: center;
+      backdrop-filter: blur(3px);
+    }
+    .modal-card {
+      background: white; width: 85%; border-radius: 16px; padding: 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    .stage-box {
+      display: inline-block; width: 22px; height: 22px; line-height: 22px; 
+      margin: 2px; border-radius: 4px; font-size: 11px; text-align: center;
+    }
+    .stage-green { background: #34c759; color: white; }
+    .stage-black { background: #e5e5ea; color: #333; }
   </style>
 </head>
 <body>
@@ -330,7 +366,7 @@
         <button class="pill-btn" id="btnDelGroup">删组</button>
         <button class="pill-btn" id="btnClearAll" style="background:var(--danger)">清空</button>
         <button class="pill-btn" id="btnSmartReview">复习 <span id="reviewCount" class="badge-yellow" style="display:none"></span></button>
-        <button class="pill-btn" id="btnReviewAll" style="background:#ff9500">全部</button>
+        <button class="pill-btn" id="btnSearchPanel" style="background:#ff9500">查询</button>
       </div>
 
       <div class="prompt-area" id="definitionDisplay">请选择分组</div>
@@ -350,15 +386,17 @@
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary); box-shadow:0 3px 8px rgba(90,200,250,0.2)">🚀 穿越</button>
       </div>
       
-      <div class="version-display">Version: 5.1 </div>
+      <div class="version-display">Version: 6.0 </div>
     </div>
 
     <div id="page-input" class="page">
       <div class="input-page-container">
         <textarea id="rawInput" placeholder="在此粘贴...&#10;格式：单词,定义"></textarea>
         <input type="text" id="groupNameInput" placeholder="输入分组名 (可选，留空自动命名)" />
-        <button class="save-btn" id="btnConfirmInput">保存到新分组</button>
-        <button class="save-btn" id="btnImport" style="margin-top: 15px; background: #34c759;">导入TXT文件</button>
+        <div style="display: flex; gap: 10px;">
+          <button class="save-btn" id="btnConfirmInput" style="flex:1;">保存到新分组</button>
+          <button class="save-btn" id="btnImport" style="flex:1; background: #34c759;">导入TXT文件</button>
+        </div>
         <input type="file" id="fileInput" accept=".txt" style="display: none;">
       </div>
     </div>
@@ -373,17 +411,38 @@
     </div>
   </div>
 
+  <div id="toast"></div>
+
+  <div id="searchModal" class="modal-overlay">
+    <div class="modal-card">
+      <input type="text" id="searchInput" placeholder="输入单词后回车查询" style="width:100%; padding:8px; margin-bottom:15px; text-align:center; font-size:18px; border:none; border-bottom:2px solid var(--primary); outline:none; font-family:monospace;" autocomplete="off"/>
+      <div id="searchResult" style="min-height: 100px; margin-bottom: 20px; text-align:left; font-size:14px; color:#333;">
+        <div style="text-align:center; color:#999; margin-top:30px;">等待查询...</div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button class="bottom-btn" id="btnSearchClose" style="background:#8e8e93; flex:1;">关闭</button>
+        <button class="bottom-btn" id="btnSearchDelete" style="background:var(--danger); flex:1; display:none;">彻底删除</button>
+      </div>
+    </div>
+  </div>
+
 <script>
   // --- 配置与数据结构 ---
-  const REVIEW_INTERVALS = [0, 1, 2, 4, 7, 15, 30, 60, 90, 120];
-  let wordLibrary = {};       
+  const REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30, 45, 60, 75, 90];
+  let wordLibrary = {};        
   let wordLibrary_copy = {}; 
   let errorBook = [];        
+  let masterDict = {};         // 全局单词库 { word: { def, joinDate, correct, wrong } }
   let currentQueue = [];      
   let currentGroupName = ""; 
   let isReviewMode = false;  
   let activeWord = null;     
   let selectedErrorWord = null;
+
+  // 特殊分组常量
+  const GRP_ALL_ERRORS = "全部错题";
+  const GRP_TODAY_ERRORS = "今日错题";
+  const GRP_ALL_WORDS = "所有单词";
 
   let sessionMistakeSet = new Set(); 
   let isRetryMode = false;
@@ -392,20 +451,29 @@
   const pages = ['drill', 'input', 'errors'];
   let currentPageIndex = 0;
 
+  // --- 辅助工具 ---
   function getTodayStr() {
     const now = new Date();
     return `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
   }
-
   function getTodayKey() { return `review_${getTodayStr()}`; }
+  function normalizeText(str) { return str.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, "").toLowerCase(); }
+  
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 2000);
+  }
 
+  // --- 核心逻辑 ---
   function calcDueWords() {
     const now = Date.now();
     const todayStr = getTodayStr();
     return errorBook.filter(w => {
         if (w.lockDay === todayStr) return true;
         const stage = w.stage || 0;
-        const intervalDays = stage < REVIEW_INTERVALS.length ? REVIEW_INTERVALS[stage] : 120;
+        const intervalDays = stage < REVIEW_INTERVALS.length ? REVIEW_INTERVALS[stage] : 90;
         return (now - w.lastReview) >= (intervalDays * 86400000);
     });
   }
@@ -420,12 +488,13 @@
   }
 
   function loadData() {
-    const data = localStorage.getItem("myCardsData_Final_V2.5");
+    const data = localStorage.getItem("myCardsData_Final_V6.0");
     if (data) {
       const parsed = JSON.parse(data);
       wordLibrary = parsed.wordLibrary || {};
       wordLibrary_copy = parsed.wordLibrary_copy || {}; 
       errorBook = parsed.errorBook || [];
+      masterDict = parsed.masterDict || {};
       errorBook.forEach(w => {
         if (!w.lastReview) w.lastReview = Date.now();
         if (typeof w.stage === 'undefined') w.stage = 0;
@@ -434,13 +503,29 @@
       currentGroupName = parsed.currentGroupName || "";
       isReviewMode = parsed.isReviewMode || false;
       activeWord = parsed.activeWord || null;
+    } else {
+      // 兼容老版本数据迁移
+      const oldData = localStorage.getItem("myCardsData_Final_V2.5");
+      if(oldData) {
+        const parsed = JSON.parse(oldData);
+        wordLibrary = parsed.wordLibrary || {};
+        wordLibrary_copy = parsed.wordLibrary_copy || {};
+        errorBook = parsed.errorBook || [];
+        // 构建 masterDict
+        for(let g in wordLibrary) {
+          wordLibrary[g].forEach(w => {
+            let key = normalizeText(w.word);
+            if(!masterDict[key]) masterDict[key] = { def: w.def, joinDate: getTodayStr(), correct: 0, wrong: 0 };
+          });
+        }
+      }
     }
     checkDailyReviewInit();
   }
 
   function saveData() {
-    const data = { wordLibrary, wordLibrary_copy, errorBook, currentQueue, currentGroupName, isReviewMode, activeWord };
-    localStorage.setItem("myCardsData_Final_V2.5", JSON.stringify(data));
+    const data = { wordLibrary, wordLibrary_copy, errorBook, masterDict, currentQueue, currentGroupName, isReviewMode, activeWord };
+    localStorage.setItem("myCardsData_Final_V6.0", JSON.stringify(data));
     updateReviewBadge(); 
   }
 
@@ -467,12 +552,30 @@
   }, {passive: true});
 
   function handleImportWords(name, list) {
-      wordLibrary[name] = [...list];
-      wordLibrary_copy[name] = JSON.parse(JSON.stringify(list));
+      let deduplicatedList = [];
+      let today = getTodayStr();
+      
+      list.forEach(item => {
+          let key = normalizeText(item.word);
+          if (masterDict[key]) {
+              // 若存在，使用 all_words 中的单词和释义去重
+              deduplicatedList.push({ word: item.word, def: masterDict[key].def });
+          } else {
+              // 若不存在，新增并记录
+              masterDict[key] = { def: item.def, joinDate: today, correct: 0, wrong: 0 };
+              deduplicatedList.push(item);
+          }
+      });
+
+      wordLibrary[name] = [...deduplicatedList];
+      wordLibrary_copy[name] = JSON.parse(JSON.stringify(deduplicatedList));
       saveData();
+      
       isReviewMode = false; isRetryMode = false; sessionMistakes = []; sessionMistakeSet.clear();
       currentGroupName = name; currentQueue = [...wordLibrary[name]];
       updateGroupDropdown(); activeWord = null; pickNextWord();
+      
+      showToast(`录入完成！共加载 ${deduplicatedList.length} 词`);
   }
 
   function handleMistake(wordObj) {
@@ -480,10 +583,13 @@
     const todayStr = getTodayStr();
     const todayKey = getTodayKey();
     const mistakeMode = isReviewMode ? 'review' : 'drill';
+    const key = normalizeText(wordObj.word);
 
     sessionMistakeSet.add(wordObj.word);
+    
+    if(masterDict[key]) masterDict[key].wrong = (masterDict[key].wrong || 0) + 1;
 
-    const existing = errorBook.find(w => w.word === wordObj.word);
+    const existing = errorBook.find(w => normalizeText(w.word) === key);
     if (existing) {
         existing.lastReview = now;
         existing.stage = 0; 
@@ -500,35 +606,63 @@
 
     let reviewList = JSON.parse(localStorage.getItem(todayKey) || '[]');
     let reviewCopy = JSON.parse(localStorage.getItem(todayKey + '_copy') || '[]');
-    if (!reviewList.some(w => w.word === wordObj.word)) reviewList.push(wordObj);
-    if (!reviewCopy.some(w => w.word === wordObj.word)) reviewCopy.push(wordObj);
+    if (!reviewList.some(w => normalizeText(w.word) === key)) reviewList.push(wordObj);
+    if (!reviewCopy.some(w => normalizeText(w.word) === key)) reviewCopy.push(wordObj);
     localStorage.setItem(todayKey, JSON.stringify(reviewList));
     localStorage.setItem(todayKey + '_copy', JSON.stringify(reviewCopy));
 
-    if (isReviewMode) {
-        if (!currentQueue.some(w => w.word === wordObj.word)) currentQueue.push(wordObj);
+    if (isReviewMode || [GRP_ALL_ERRORS, GRP_TODAY_ERRORS, GRP_ALL_WORDS].includes(currentGroupName)) {
+        if (!currentQueue.some(w => normalizeText(w.word) === key)) currentQueue.push(wordObj);
     } else if (!isRetryMode) {
-        if (!sessionMistakes.some(w => w.word === wordObj.word)) sessionMistakes.push(wordObj);
+        if (!sessionMistakes.some(w => normalizeText(w.word) === key)) sessionMistakes.push(wordObj);
     }
     updateReviewBadge(); 
   }
 
   function handleCorrect(wordStr) {
     const todayStr = getTodayStr();
-    const errIdx = errorBook.findIndex(w => w.word === wordStr);
+    const key = normalizeText(wordStr);
+    
+    if(masterDict[key]) masterDict[key].correct = (masterDict[key].correct || 0) + 1;
+
+    const errIdx = errorBook.findIndex(w => normalizeText(w.word) === key);
     if (errIdx !== -1) {
          const item = errorBook[errIdx];
          if (new Date(item.lastReview).toDateString() !== new Date().toDateString()) item.stage = (item.stage || 0) + 1;
          item.lastReview = Date.now(); item.lockDay = todayStr;
     }
-    currentQueue = currentQueue.filter(w => w.word !== wordStr);
+    
+    currentQueue = currentQueue.filter(w => normalizeText(w.word) !== key);
+    
     if (isReviewMode) {
         const todayKey = getTodayKey();
         let list = JSON.parse(localStorage.getItem(todayKey) || '[]');
-        localStorage.setItem(todayKey, JSON.stringify(list.filter(w => w.word !== wordStr)));
+        localStorage.setItem(todayKey, JSON.stringify(list.filter(w => normalizeText(w.word) !== key)));
     } else if (!isRetryMode && currentGroupName && wordLibrary[currentGroupName]) {
-        wordLibrary[currentGroupName] = wordLibrary[currentGroupName].filter(w => w.word !== wordStr);
+        wordLibrary[currentGroupName] = wordLibrary[currentGroupName].filter(w => normalizeText(w.word) !== key);
     }
+  }
+
+  function hardDeleteWord(wordToDel) {
+      const key = normalizeText(wordToDel);
+      delete masterDict[key];
+      errorBook = errorBook.filter(x => normalizeText(x.word) !== key);
+      
+      for(let g in wordLibrary) { wordLibrary[g] = wordLibrary[g].filter(x => normalizeText(x.word) !== key); }
+      for(let g in wordLibrary_copy) { wordLibrary_copy[g] = wordLibrary_copy[g].filter(x => normalizeText(x.word) !== key); }
+      
+      currentQueue = currentQueue.filter(x => normalizeText(x.word) !== key);
+      sessionMistakes = sessionMistakes.filter(x => normalizeText(x.word) !== key);
+      
+      const todayKey = getTodayKey();
+      let rList = JSON.parse(localStorage.getItem(todayKey) || '[]');
+      let rCopy = JSON.parse(localStorage.getItem(todayKey + '_copy') || '[]');
+      localStorage.setItem(todayKey, JSON.stringify(rList.filter(x => normalizeText(x.word) !== key)));
+      localStorage.setItem(todayKey + '_copy', JSON.stringify(rCopy.filter(x => normalizeText(x.word) !== key)));
+      
+      saveData();
+      renderBubbleWall();
+      updateGroupDropdown();
   }
 
   function pickNextWord() {
@@ -573,37 +707,36 @@
         } else { errDisp.style.display = "none"; }
     }
     if (!activeWord) { disp.textContent = "0 / 0"; return; }
+    
     if (isReviewMode) {
-        const total = (currentGroupName === "全部复习") ? errorBook.length : JSON.parse(localStorage.getItem(getTodayKey() + '_copy') || '[]').length;
+        const total = JSON.parse(localStorage.getItem(getTodayKey() + '_copy') || '[]').length;
         disp.textContent = `${total - currentQueue.length + 1} / ${total}`;
     } else if (isRetryMode) {
         disp.textContent = `错题重练: ${currentQueue.length}`;
-    } else if (currentGroupName && wordLibrary_copy[currentGroupName]) {
-        const total = wordLibrary_copy[currentGroupName].length;
+    } else {
+        // 固定分组和普通分组的基数计算
+        let total = 0;
+        if (currentGroupName === GRP_ALL_ERRORS) total = errorBook.length;
+        else if (currentGroupName === GRP_TODAY_ERRORS) total = errorBook.filter(w => w.lastMistakeDate === getTodayStr()).length;
+        else if (currentGroupName === GRP_ALL_WORDS) total = Object.keys(masterDict).length;
+        else if (wordLibrary_copy[currentGroupName]) total = wordLibrary_copy[currentGroupName].length;
         disp.textContent = `${total - currentQueue.length + 1} / ${total}`;
     }
   }
 
   function updateReviewBadge() {
     const todayStr = getTodayStr();
-    // 1. 复习按钮Badge
     const dueCount = calcDueWords().length;
     const countSpan = document.getElementById("reviewCount");
     countSpan.style.display = dueCount > 0 ? "inline" : "none";
     countSpan.textContent = dueCount;
 
-    // 2. 全部复习Badge
-    document.getElementById("btnReviewAll").innerHTML = errorBook.length > 0 ? `全部 <span class="badge-yellow">${errorBook.length}</span>` : "全部";
-
-    // 3. 复制错题Badge (今日所有错误数)
     const todayErrors = errorBook.filter(item => item.lastMistakeDate === todayStr);
     const copyBadge = document.getElementById("copyCountBadge");
     copyBadge.textContent = todayErrors.length > 0 ? todayErrors.length : "";
   }
 
   // --- 交互逻辑 ---
-  const normalizeText = (str) => str.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, "").toLowerCase();
-
   document.getElementById("wordInput").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && activeWord) {
       const val = e.target.value.trim();
@@ -635,29 +768,76 @@
     isReviewMode = true; currentGroupName = "今日复习"; updateGroupDropdown(); activeWord = null; pickNextWord();
   };
 
-  document.getElementById("btnReviewAll").onclick = () => {
-    if (errorBook.length === 0) return;
-    sessionMistakes = []; sessionMistakeSet.clear(); isRetryMode = false; isReviewMode = true;
-    currentQueue = JSON.parse(JSON.stringify(errorBook)); currentGroupName = "全部复习";
-    updateGroupDropdown(); activeWord = null; pickNextWord();
+  // 查询功能
+  document.getElementById("btnSearchPanel").onclick = () => {
+      document.getElementById("searchModal").style.display = "flex";
+      document.getElementById("searchInput").value = "";
+      document.getElementById("searchResult").innerHTML = '<div style="text-align:center; color:#999; margin-top:30px;">输入单词并回车查询</div>';
+      document.getElementById("btnSearchDelete").style.display = "none";
+      setTimeout(() => document.getElementById("searchInput").focus(), 100);
   };
+  
+  document.getElementById("btnSearchClose").onclick = () => { document.getElementById("searchModal").style.display = "none"; };
+  
+  document.getElementById("searchInput").addEventListener("keydown", (e) => {
+      if(e.key === "Enter") {
+          const rawInput = e.target.value.trim();
+          if(!rawInput) return;
+          const key = normalizeText(rawInput);
+          const resBox = document.getElementById("searchResult");
+          const delBtn = document.getElementById("btnSearchDelete");
+          
+          if(masterDict[key]) {
+              const info = masterDict[key];
+              const eb = errorBook.find(x => normalizeText(x.word) === key);
+              const stage = eb ? (eb.stage || 0) : 0;
+              
+              let planHtml = `<div style="margin-top:10px;"><b>复习计划：</b><br/>`;
+              REVIEW_INTERVALS.forEach((days, idx) => {
+                  let cls = (idx < stage) ? "stage-green" : "stage-black";
+                  planHtml += `<span class="stage-box ${cls}">${days}</span>`;
+              });
+              planHtml += `</div>`;
+              
+              resBox.innerHTML = `
+                  <h3 style="margin:0 0 5px 0; color:var(--active-blue);">${rawInput}</h3>
+                  <div style="margin-bottom:10px; font-weight:bold;">${info.def}</div>
+                  <div>加入时间：${info.joinDate || '未知'}</div>
+                  <div>拼写历史：<span style="color:#34c759">✓${info.correct||0}</span> , <span style="color:var(--danger)">✗${info.wrong||0}</span></div>
+                  ${planHtml}
+              `;
+              delBtn.style.display = "block";
+              delBtn.onclick = () => {
+                  if(confirm(`确认彻底删除 ${rawInput} 吗？`)) {
+                      hardDeleteWord(rawInput);
+                      document.getElementById("searchModal").style.display = "none";
+                      showToast(`已彻底删除 ${rawInput}`);
+                      if(activeWord && normalizeText(activeWord.word) === key) pickNextWord();
+                  }
+              };
+          } else {
+              resBox.innerHTML = `<div style="text-align:center; color:var(--danger); margin-top:30px; font-weight:bold;">该单词不存在</div>`;
+              delBtn.style.display = "none";
+          }
+      }
+  });
 
   document.getElementById("btnCopyToday").onclick = () => {
       const todayStr = getTodayStr();
       const todayWords = errorBook.filter(item => item.lastMistakeDate === todayStr).map(item => `${item.word}！。`);
-      if (todayWords.length === 0) { alert("今日暂无错题记录！"); return; }
+      if (todayWords.length === 0) { showToast("今日暂无错题记录！"); return; }
       copyToClipboard(todayWords.join(""), "已复制今日错题！");
   };
 
   document.getElementById("btnErrorCopyAll").onclick = () => {
-      if (errorBook.length === 0) return;
+      if (errorBook.length === 0) { showToast("暂无错题！"); return; }
       const allWords = errorBook.map(item => `${item.word}！。`).join("");
       copyToClipboard(allWords, "已复制所有错题！");
   };
 
   function copyToClipboard(text, msg) {
       if (navigator.clipboard && window.isSecureContext) {
-          navigator.clipboard.writeText(text).then(() => alert(msg)).catch(() => fallbackCopy(text, msg));
+          navigator.clipboard.writeText(text).then(() => showToast(msg)).catch(() => fallbackCopy(text, msg));
       } else { fallbackCopy(text, msg); }
   }
 
@@ -665,13 +845,17 @@
       const ta = document.createElement("textarea"); ta.value = text;
       ta.style.position = "fixed"; document.body.appendChild(ta);
       ta.focus(); ta.select();
-      try { document.execCommand('copy') ? alert(msg) : alert("复制失败"); } catch(e) { alert("复制失败"); }
+      try { document.execCommand('copy') ? showToast(msg) : showToast("复制失败"); } catch(e) { showToast("复制失败"); }
       document.body.removeChild(ta);
   }
 
-  // 其他基础逻辑
   document.getElementById("btnConfirmInput").onclick = () => {
-      const list = parseText(document.getElementById("rawInput").value);
+      const text = document.getElementById("rawInput").value;
+      const list = text.split("\n").map(l => {
+          const p = l.split(/[,，]/);
+          return (p.length >= 2) ? { word: p[0].trim(), def: p.slice(1).join(",").trim() } : null;
+      }).filter(x => x);
+      
       if(!list.length) return;
       const custom = document.getElementById("groupNameInput").value.trim();
       const now = new Date();
@@ -680,29 +864,59 @@
       handleImportWords(name, list); switchPage('drill');
   };
 
-  function parseText(text) {
-      return text.split("\n").map(l => {
-          const p = l.split(/[,，]/);
-          return (p.length >= 2) ? { word: p[0].trim(), def: p.slice(1).join(",").trim() } : null;
-      }).filter(x => x);
-  }
-
   document.getElementById("groupSelectorSelect").addEventListener("change", (e) => {
     if (!e.target.value) return;
     isReviewMode = false; isRetryMode = false; sessionMistakes = []; sessionMistakeSet.clear();
     currentGroupName = e.target.value;
-    if (wordLibrary[currentGroupName].length === 0 && wordLibrary_copy[currentGroupName]) {
-        wordLibrary[currentGroupName] = JSON.parse(JSON.stringify(wordLibrary_copy[currentGroupName]));
+    
+    if (currentGroupName === GRP_ALL_ERRORS) {
+        currentQueue = [...errorBook];
+    } else if (currentGroupName === GRP_TODAY_ERRORS) {
+        currentQueue = errorBook.filter(w => w.lastMistakeDate === getTodayStr());
+    } else if (currentGroupName === GRP_ALL_WORDS) {
+        currentQueue = Object.keys(masterDict).map(k => ({ word: k, def: masterDict[k].def }));
+    } else {
+        if (wordLibrary[currentGroupName].length === 0 && wordLibrary_copy[currentGroupName]) {
+            wordLibrary[currentGroupName] = JSON.parse(JSON.stringify(wordLibrary_copy[currentGroupName]));
+        }
+        currentQueue = [...wordLibrary[currentGroupName]];
     }
-    currentQueue = [...wordLibrary[currentGroupName]];
+    
     updateGroupDropdown(); activeWord = null; pickNextWord();
   });
 
   function updateGroupDropdown() {
     const sel = document.getElementById("groupSelectorSelect");
     const lab = document.getElementById("groupBtnLabel");
-    sel.innerHTML = '<option value="">--</option>';
-    for (let n in wordLibrary) { const opt = document.createElement("option"); opt.value = n; opt.textContent = n; sel.appendChild(opt); }
+    sel.innerHTML = '<option value="">-- 普通分组 --</option>';
+    
+    // 渲染常规分组
+    for (let n in wordLibrary) { 
+        const opt = document.createElement("option"); 
+        opt.value = n; opt.textContent = n; 
+        sel.appendChild(opt); 
+    }
+    
+    // 渲染特殊分组
+    const divider = document.createElement("option");
+    divider.disabled = true; divider.textContent = "---------";
+    sel.appendChild(divider);
+    
+    const todayErrCount = errorBook.filter(w => w.lastMistakeDate === getTodayStr()).length;
+    const allWordsCount = Object.keys(masterDict).length;
+    
+    const fixGroups = [
+        { name: GRP_ALL_ERRORS, text: `全部错题 (${errorBook.length})` },
+        { name: GRP_TODAY_ERRORS, text: `今日错题 (${todayErrCount})` },
+        { name: GRP_ALL_WORDS, text: `所有单词 (${allWordsCount})` }
+    ];
+    
+    fixGroups.forEach(fg => {
+        const opt = document.createElement("option");
+        opt.value = fg.name; opt.textContent = fg.text;
+        sel.appendChild(opt);
+    });
+
     if (isReviewMode) { lab.textContent = currentGroupName || "复习中"; sel.value = ""; } 
     else if (currentGroupName) { sel.value = currentGroupName; lab.textContent = currentGroupName.length > 5 ? currentGroupName.substring(0,4)+'..' : currentGroupName; }
     else { lab.textContent = "选择"; }
@@ -721,33 +935,49 @@
     });
   }
 
+  // 统一的删除逻辑入口
   document.getElementById("btnDeleteWord").onclick = () => {
-    if (!activeWord || !confirm(`彻底删除 "${activeWord.word}"？`)) return;
-    const w = activeWord.word;
-    currentQueue = currentQueue.filter(x => x.word !== w);
-    errorBook = errorBook.filter(x => x.word !== w);
-    if(currentGroupName) {
-        wordLibrary[currentGroupName] = (wordLibrary[currentGroupName]||[]).filter(x => x.word !== w);
-        wordLibrary_copy[currentGroupName] = (wordLibrary_copy[currentGroupName]||[]).filter(x => x.word !== w);
-    }
-    saveData(); pickNextWord();
+    if (!activeWord || !confirm(`彻底删除 "${activeWord.word}"？该操作将从所有记录中清除！`)) return;
+    hardDeleteWord(activeWord.word);
+    pickNextWord();
   };
 
   document.getElementById("btnErrorDelete").onclick = () => {
       if(!selectedErrorWord) return;
-      errorBook = errorBook.filter(w => w.word !== selectedErrorWord.word);
-      saveData(); renderBubbleWall();
+      // 错题墙的删除：根据规则9，仅删除错题记录，保留全局词库
+      const key = normalizeText(selectedErrorWord.word);
+      errorBook = errorBook.filter(w => normalizeText(w.word) !== key);
+      
+      const todayKey = getTodayKey();
+      let rList = JSON.parse(localStorage.getItem(todayKey) || '[]');
+      let rCopy = JSON.parse(localStorage.getItem(todayKey + '_copy') || '[]');
+      localStorage.setItem(todayKey, JSON.stringify(rList.filter(x => normalizeText(x.word) !== key)));
+      localStorage.setItem(todayKey + '_copy', JSON.stringify(rCopy.filter(x => normalizeText(x.word) !== key)));
+      
+      saveData(); renderBubbleWall(); updateGroupDropdown();
+      showToast("已将该词移出错题记录");
   };
 
   document.getElementById("btnDelGroup").onclick = () => {
-      if(!currentGroupName || isReviewMode || !confirm(`删除分组 "${currentGroupName}"？`)) return;
+      if(!currentGroupName || isReviewMode) return;
+      if([GRP_ALL_ERRORS, GRP_TODAY_ERRORS, GRP_ALL_WORDS].includes(currentGroupName)) {
+          showToast("系统保留分组，无法删除！");
+          return;
+      }
+      if(!confirm(`删除分组 "${currentGroupName}"？`)) return;
       delete wordLibrary[currentGroupName]; delete wordLibrary_copy[currentGroupName];
       currentGroupName = ""; currentQueue = []; activeWord = null;
       saveData(); updateGroupDropdown(); pickNextWord();
   };
 
   document.getElementById("btnClearAll").onclick = () => {
-      if(confirm("确认清空所有分组？")) { wordLibrary = {}; wordLibrary_copy = {}; currentGroupName = ""; currentQueue = []; activeWord = null; saveData(); updateGroupDropdown(); pickNextWord(); }
+      if(confirm("确认清空所有自定义分组？(不会清空全局词库和错题)")) { 
+          wordLibrary = {}; wordLibrary_copy = {}; 
+          if(![GRP_ALL_ERRORS, GRP_TODAY_ERRORS, GRP_ALL_WORDS].includes(currentGroupName)) {
+              currentGroupName = ""; currentQueue = []; activeWord = null; 
+          }
+          saveData(); updateGroupDropdown(); pickNextWord(); 
+      }
   };
 
   document.getElementById("btnImport").onclick = () => document.getElementById("fileInput").click();
@@ -755,7 +985,10 @@
       const file = e.target.files[0]; if(!file) return;
       const reader = new FileReader();
       reader.onload = (evt) => {
-          const list = parseText(evt.target.result);
+          const list = evt.target.result.split("\n").map(l => {
+             const p = l.split(/[,，]/);
+             return (p.length >= 2) ? { word: p[0].trim(), def: p.slice(1).join(",").trim() } : null;
+          }).filter(x => x);
           if(list.length) handleImportWords(file.name.replace(/\.[^/.]+$/, ""), list);
       };
       reader.readAsText(file); e.target.value = "";
