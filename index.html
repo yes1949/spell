@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Final V6.1</title>
+  <title>记忆原型 Final V6.2</title>
   <style>
     :root {
       --primary: #5ac8fa;
@@ -86,7 +86,6 @@
       outline: none;
       background: var(--primary);
       color: white;
-      font-size: 14px;
       font-weight: 600;
       padding: 0;
       border-radius: var(--btn-radius);
@@ -190,7 +189,7 @@
     .bottom-actions {
       display: flex;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px; /* 调整了间距让4个按钮放下 */
       margin-top: 15px;
     }
     
@@ -198,9 +197,10 @@
       flex: 1;
       height: 44px;
       border-radius: 22px;
-      font-size: 14px;
+      font-size: 13px; /* 缩小了字体以兼容4个按钮 */
       box-shadow: 0 3px 8px rgba(0,0,0,0.1);
       white-space: nowrap;
+      padding: 0 4px;
     }
 
     .version-display {
@@ -381,12 +381,13 @@
       </div>
 
       <div class="bottom-actions">
+        <button class="bottom-btn" id="btnRestartGroup" style="background:#8e8e93; box-shadow:0 3px 8px rgba(142,142,147,0.2)">🔄 重来</button>
         <button class="bottom-btn" id="btnDeleteWord" style="background:var(--danger); box-shadow:0 3px 8px rgba(255,59,48,0.2)">🗑️ 删除</button>
-        <button class="bottom-btn" id="btnCopyToday" style="background:#ff9500; box-shadow:0 3px 8px rgba(255,149,0,0.2)">📋 复制错题 <span id="copyCountBadge" class="badge-yellow"></span></button>
+        <button class="bottom-btn" id="btnCopyToday" style="background:#ff9500; box-shadow:0 3px 8px rgba(255,149,0,0.2)">📋 错题 <span id="copyCountBadge" class="badge-yellow"></span></button>
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary); box-shadow:0 3px 8px rgba(90,200,250,0.2)">🚀 穿越</button>
       </div>
       
-      <div class="version-display">Version: 6.1 </div>
+      <div class="version-display">Version: 6.2 </div>
     </div>
 
     <div id="page-input" class="page">
@@ -438,6 +439,7 @@
   let isReviewMode = false;  
   let activeWord = null;     
   let selectedErrorWord = null;
+  let allWordsQueue = null;    // 新增：所有单词分组的记忆队列
 
   // 特殊分组常量
   const GRP_ALL_ERRORS = "全部错题";
@@ -488,7 +490,7 @@
   }
 
   function loadData() {
-    const data = localStorage.getItem("myCardsData_Final_V6.1");
+    const data = localStorage.getItem("myCardsData_Final_V6.1"); // 保持相同的存储键
     if (data) {
       const parsed = JSON.parse(data);
       wordLibrary = parsed.wordLibrary || {};
@@ -503,6 +505,7 @@
       currentGroupName = parsed.currentGroupName || "";
       isReviewMode = parsed.isReviewMode || false;
       activeWord = parsed.activeWord || null;
+      allWordsQueue = parsed.allWordsQueue || null; // 新增读取逻辑
     } else {
       // 兼容老版本数据迁移
       const oldData = localStorage.getItem("myCardsData_Final_V2.5");
@@ -524,7 +527,8 @@
   }
 
   function saveData() {
-    const data = { wordLibrary, wordLibrary_copy, errorBook, masterDict, currentQueue, currentGroupName, isReviewMode, activeWord };
+    // 包含 allWordsQueue 的保存
+    const data = { wordLibrary, wordLibrary_copy, errorBook, masterDict, currentQueue, currentGroupName, isReviewMode, activeWord, allWordsQueue };
     localStorage.setItem("myCardsData_Final_V6.1", JSON.stringify(data));
     updateReviewBadge(); 
   }
@@ -558,10 +562,8 @@
       list.forEach(item => {
           let key = normalizeText(item.word);
           if (masterDict[key]) {
-              // 若存在，使用 all_words 中的单词和释义去重
               deduplicatedList.push({ word: item.word, def: masterDict[key].def });
           } else {
-              // 若不存在，新增并记录
               masterDict[key] = { def: item.def, joinDate: today, correct: 0, wrong: 0 };
               deduplicatedList.push(item);
           }
@@ -569,6 +571,10 @@
 
       wordLibrary[name] = [...deduplicatedList];
       wordLibrary_copy[name] = JSON.parse(JSON.stringify(deduplicatedList));
+      
+      // 如果录入新词，自动清空 allWordsQueue，使其下次重新构建包含新词
+      allWordsQueue = null; 
+
       saveData();
       
       isReviewMode = false; isRetryMode = false; sessionMistakes = []; sessionMistakeSet.clear();
@@ -638,8 +644,13 @@
         const todayKey = getTodayKey();
         let list = JSON.parse(localStorage.getItem(todayKey) || '[]');
         localStorage.setItem(todayKey, JSON.stringify(list.filter(w => normalizeText(w.word) !== key)));
-    } else if (!isRetryMode && currentGroupName && wordLibrary[currentGroupName]) {
-        wordLibrary[currentGroupName] = wordLibrary[currentGroupName].filter(w => normalizeText(w.word) !== key);
+    } else if (!isRetryMode) {
+        // 新增对 GRP_ALL_WORDS 进度的更新保存
+        if (currentGroupName === GRP_ALL_WORDS && allWordsQueue) {
+            allWordsQueue = allWordsQueue.filter(w => normalizeText(w.word) !== key);
+        } else if (currentGroupName && wordLibrary[currentGroupName]) {
+            wordLibrary[currentGroupName] = wordLibrary[currentGroupName].filter(w => normalizeText(w.word) !== key);
+        }
     }
   }
 
@@ -654,6 +665,11 @@
       currentQueue = currentQueue.filter(x => normalizeText(x.word) !== key);
       sessionMistakes = sessionMistakes.filter(x => normalizeText(x.word) !== key);
       
+      // 同步删除缓存中的 allWordsQueue 单词
+      if (allWordsQueue) {
+          allWordsQueue = allWordsQueue.filter(x => normalizeText(x.word) !== key);
+      }
+
       const todayKey = getTodayKey();
       let rList = JSON.parse(localStorage.getItem(todayKey) || '[]');
       let rCopy = JSON.parse(localStorage.getItem(todayKey + '_copy') || '[]');
@@ -708,20 +724,22 @@
     }
     if (!activeWord) { disp.textContent = "0 / 0"; return; }
     
+    let total = 0;
     if (isReviewMode) {
-        const total = JSON.parse(localStorage.getItem(getTodayKey() + '_copy') || '[]').length;
-        disp.textContent = `${total - currentQueue.length + 1} / ${total}`;
+        total = JSON.parse(localStorage.getItem(getTodayKey() + '_copy') || '[]').length;
     } else if (isRetryMode) {
         disp.textContent = `错题重练: ${currentQueue.length}`;
+        return;
     } else {
-        // 固定分组和普通分组的基数计算
-        let total = 0;
         if (currentGroupName === GRP_ALL_ERRORS) total = errorBook.length;
         else if (currentGroupName === GRP_TODAY_ERRORS) total = errorBook.filter(w => w.lastMistakeDate === getTodayStr()).length;
         else if (currentGroupName === GRP_ALL_WORDS) total = Object.keys(masterDict).length;
         else if (wordLibrary_copy[currentGroupName]) total = wordLibrary_copy[currentGroupName].length;
-        disp.textContent = `${total - currentQueue.length + 1} / ${total}`;
     }
+    
+    let index = total - currentQueue.length + 1;
+    if (index > total) index = total; 
+    disp.textContent = `${index} / ${total}`;
   }
 
   function updateReviewBadge() {
@@ -874,7 +892,11 @@
     } else if (currentGroupName === GRP_TODAY_ERRORS) {
         currentQueue = errorBook.filter(w => w.lastMistakeDate === getTodayStr());
     } else if (currentGroupName === GRP_ALL_WORDS) {
-        currentQueue = Object.keys(masterDict).map(k => ({ word: k, def: masterDict[k].def }));
+        // 新增的记忆化处理
+        if (!allWordsQueue || allWordsQueue.length === 0) {
+            allWordsQueue = Object.keys(masterDict).map(k => ({ word: k, def: masterDict[k].def }));
+        }
+        currentQueue = [...allWordsQueue];
     } else {
         if (wordLibrary[currentGroupName].length === 0 && wordLibrary_copy[currentGroupName]) {
             wordLibrary[currentGroupName] = JSON.parse(JSON.stringify(wordLibrary_copy[currentGroupName]));
@@ -935,6 +957,37 @@
     });
   }
 
+  // --- 新增：重来按钮逻辑 ---
+  document.getElementById("btnRestartGroup").onclick = () => {
+      if (!currentGroupName || isReviewMode) {
+          showToast("复习模式或未选分组时无法重置！");
+          return;
+      }
+      if (confirm(`确认要重新开始拼写分组 "${currentGroupName}" 吗？这会刷新当前进度。`)) {
+          if (currentGroupName === GRP_ALL_WORDS) {
+              allWordsQueue = Object.keys(masterDict).map(k => ({ word: k, def: masterDict[k].def }));
+              currentQueue = [...allWordsQueue];
+          } else if (currentGroupName === GRP_ALL_ERRORS) {
+              currentQueue = [...errorBook];
+          } else if (currentGroupName === GRP_TODAY_ERRORS) {
+              currentQueue = errorBook.filter(w => w.lastMistakeDate === getTodayStr());
+          } else {
+              // 普通分组恢复出厂副本
+              if (wordLibrary_copy[currentGroupName]) {
+                  wordLibrary[currentGroupName] = JSON.parse(JSON.stringify(wordLibrary_copy[currentGroupName]));
+                  currentQueue = [...wordLibrary[currentGroupName]];
+              }
+          }
+          isRetryMode = false;
+          sessionMistakes = [];
+          sessionMistakeSet.clear();
+          activeWord = null;
+          saveData();
+          pickNextWord();
+          showToast("进度已重置");
+      }
+  };
+
   // 统一的删除逻辑入口
   document.getElementById("btnDeleteWord").onclick = () => {
     if (!activeWord || !confirm(`彻底删除 "${activeWord.word}"？该操作将从所有记录中清除！`)) return;
@@ -944,7 +997,6 @@
 
   document.getElementById("btnErrorDelete").onclick = () => {
       if(!selectedErrorWord) return;
-      // 错题墙的删除：根据规则9，仅删除错题记录，保留全局词库
       const key = normalizeText(selectedErrorWord.word);
       errorBook = errorBook.filter(w => normalizeText(w.word) !== key);
       
