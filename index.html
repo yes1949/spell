@@ -387,7 +387,7 @@
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary); box-shadow:0 3px 8px rgba(90,200,250,0.2)">🚀 穿越</button>
       </div>
       
-      <div class="version-display">Version: 6.2 </div>
+      <div class="version-display">Version: 6.3 </div>
     </div>
 
     <div id="page-input" class="page">
@@ -557,23 +557,30 @@
 
   function handleImportWords(name, list) {
       let deduplicatedList = [];
+      let globallyNewWords = []; // 新增：用于追踪全局真正的新词
       let today = getTodayStr();
       
       list.forEach(item => {
           let key = normalizeText(item.word);
           if (masterDict[key]) {
+              // 词库已有该词，更新到当前分组的去重列表中
               deduplicatedList.push({ word: item.word, def: masterDict[key].def });
           } else {
+              // 词库没有该词，属于全新单词
               masterDict[key] = { def: item.def, joinDate: today, correct: 0, wrong: 0 };
               deduplicatedList.push(item);
+              globallyNewWords.push(item); // 记录到全局新词列表
           }
       });
 
       wordLibrary[name] = [...deduplicatedList];
       wordLibrary_copy[name] = JSON.parse(JSON.stringify(deduplicatedList));
       
-      // 如果录入新词，自动清空 allWordsQueue，使其下次重新构建包含新词
-      allWordsQueue = null; 
+      // 【核心修复】不自动清空 allWordsQueue，而是将真正的新词追加进去
+      // 这样能保留之前的进度，并让总数动态增加
+      if (allWordsQueue) {
+          allWordsQueue.push(...globallyNewWords);
+      }
 
       saveData();
       
