@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Final V6.2</title>
+  <title>记忆原型 Final V6.4</title>
   <style>
     :root {
       --primary: #5ac8fa;
@@ -189,7 +189,7 @@
     .bottom-actions {
       display: flex;
       justify-content: space-between;
-      gap: 8px; /* 调整了间距让4个按钮放下 */
+      gap: 8px;
       margin-top: 15px;
     }
     
@@ -197,7 +197,7 @@
       flex: 1;
       height: 44px;
       border-radius: 22px;
-      font-size: 13px; /* 缩小了字体以兼容4个按钮 */
+      font-size: 13px;
       box-shadow: 0 3px 8px rgba(0,0,0,0.1);
       white-space: nowrap;
       padding: 0 4px;
@@ -301,7 +301,6 @@
       color: #fff000;
     }
 
-    /* --- 新增：Toast 与 Modal 样式 --- */
     #toast {
       visibility: hidden;
       min-width: 200px;
@@ -387,7 +386,7 @@
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary); box-shadow:0 3px 8px rgba(90,200,250,0.2)">🚀 穿越</button>
       </div>
       
-      <div class="version-display">Version: 6.3 </div>
+      <div class="version-display">Version: 6.4 </div>
     </div>
 
     <div id="page-input" class="page">
@@ -471,9 +470,7 @@
   // --- 核心逻辑 ---
   function calcDueWords() {
     const now = Date.now();
-    const todayStr = getTodayStr();
     return errorBook.filter(w => {
-        if (w.lockDay === todayStr) return true;
         const stage = w.stage || 0;
         const intervalDays = stage < REVIEW_INTERVALS.length ? REVIEW_INTERVALS[stage] : 90;
         return (now - w.lastReview) >= (intervalDays * 86400000);
@@ -505,7 +502,7 @@
       currentGroupName = parsed.currentGroupName || "";
       isReviewMode = parsed.isReviewMode || false;
       activeWord = parsed.activeWord || null;
-      allWordsQueue = parsed.allWordsQueue || null; // 新增读取逻辑
+      allWordsQueue = parsed.allWordsQueue || null; 
     } else {
       // 兼容老版本数据迁移
       const oldData = localStorage.getItem("myCardsData_Final_V2.5");
@@ -514,7 +511,6 @@
         wordLibrary = parsed.wordLibrary || {};
         wordLibrary_copy = parsed.wordLibrary_copy || {};
         errorBook = parsed.errorBook || [];
-        // 构建 masterDict
         for(let g in wordLibrary) {
           wordLibrary[g].forEach(w => {
             let key = normalizeText(w.word);
@@ -527,7 +523,6 @@
   }
 
   function saveData() {
-    // 包含 allWordsQueue 的保存
     const data = { wordLibrary, wordLibrary_copy, errorBook, masterDict, currentQueue, currentGroupName, isReviewMode, activeWord, allWordsQueue };
     localStorage.setItem("myCardsData_Final_V6.1", JSON.stringify(data));
     updateReviewBadge(); 
@@ -557,27 +552,28 @@
 
   function handleImportWords(name, list) {
       let deduplicatedList = [];
-      let globallyNewWords = []; // 新增：用于追踪全局真正的新词
+      let globallyNewWords = []; 
       let today = getTodayStr();
+      let seenKeysInBatch = new Set(); // 新增：当前批次去重
       
       list.forEach(item => {
           let key = normalizeText(item.word);
+          
+          if (seenKeysInBatch.has(key)) return; // 拦截单次文本内的重复单词
+          seenKeysInBatch.add(key);
+
           if (masterDict[key]) {
-              // 词库已有该词，更新到当前分组的去重列表中
               deduplicatedList.push({ word: item.word, def: masterDict[key].def });
           } else {
-              // 词库没有该词，属于全新单词
               masterDict[key] = { def: item.def, joinDate: today, correct: 0, wrong: 0 };
               deduplicatedList.push(item);
-              globallyNewWords.push(item); // 记录到全局新词列表
+              globallyNewWords.push(item); 
           }
       });
 
       wordLibrary[name] = [...deduplicatedList];
       wordLibrary_copy[name] = JSON.parse(JSON.stringify(deduplicatedList));
       
-      // 【核心修复】不自动清空 allWordsQueue，而是将真正的新词追加进去
-      // 这样能保留之前的进度，并让总数动态增加
       if (allWordsQueue) {
           allWordsQueue.push(...globallyNewWords);
       }
@@ -652,7 +648,6 @@
         let list = JSON.parse(localStorage.getItem(todayKey) || '[]');
         localStorage.setItem(todayKey, JSON.stringify(list.filter(w => normalizeText(w.word) !== key)));
     } else if (!isRetryMode) {
-        // 新增对 GRP_ALL_WORDS 进度的更新保存
         if (currentGroupName === GRP_ALL_WORDS && allWordsQueue) {
             allWordsQueue = allWordsQueue.filter(w => normalizeText(w.word) !== key);
         } else if (currentGroupName && wordLibrary[currentGroupName]) {
@@ -672,7 +667,6 @@
       currentQueue = currentQueue.filter(x => normalizeText(x.word) !== key);
       sessionMistakes = sessionMistakes.filter(x => normalizeText(x.word) !== key);
       
-      // 同步删除缓存中的 allWordsQueue 单词
       if (allWordsQueue) {
           allWordsQueue = allWordsQueue.filter(x => normalizeText(x.word) !== key);
       }
@@ -751,7 +745,12 @@
 
   function updateReviewBadge() {
     const todayStr = getTodayStr();
-    const dueCount = calcDueWords().length;
+    const todayKey = getTodayKey();
+    
+    // 直接读取缓存队列长度，杜绝状态不一致
+    const reviewQueue = JSON.parse(localStorage.getItem(todayKey) || '[]');
+    const dueCount = reviewQueue.length;
+
     const countSpan = document.getElementById("reviewCount");
     countSpan.style.display = dueCount > 0 ? "inline" : "none";
     countSpan.textContent = dueCount;
@@ -804,6 +803,11 @@
   
   document.getElementById("btnSearchClose").onclick = () => { document.getElementById("searchModal").style.display = "none"; };
   
+  // 新增输入监听，防止手滑误删其他单词
+  document.getElementById("searchInput").addEventListener("input", () => {
+      document.getElementById("btnSearchDelete").style.display = "none";
+  });
+
   document.getElementById("searchInput").addEventListener("keydown", (e) => {
       if(e.key === "Enter") {
           const rawInput = e.target.value.trim();
@@ -899,7 +903,6 @@
     } else if (currentGroupName === GRP_TODAY_ERRORS) {
         currentQueue = errorBook.filter(w => w.lastMistakeDate === getTodayStr());
     } else if (currentGroupName === GRP_ALL_WORDS) {
-        // 新增的记忆化处理
         if (!allWordsQueue || allWordsQueue.length === 0) {
             allWordsQueue = Object.keys(masterDict).map(k => ({ word: k, def: masterDict[k].def }));
         }
@@ -964,7 +967,6 @@
     });
   }
 
-  // --- 新增：重来按钮逻辑 ---
   document.getElementById("btnRestartGroup").onclick = () => {
       if (!currentGroupName || isReviewMode) {
           showToast("复习模式或未选分组时无法重置！");
@@ -995,7 +997,6 @@
       }
   };
 
-  // 统一的删除逻辑入口
   document.getElementById("btnDeleteWord").onclick = () => {
     if (!activeWord || !confirm(`彻底删除 "${activeWord.word}"？该操作将从所有记录中清除！`)) return;
     hardDeleteWord(activeWord.word);
@@ -1013,6 +1014,10 @@
       localStorage.setItem(todayKey, JSON.stringify(rList.filter(x => normalizeText(x.word) !== key)));
       localStorage.setItem(todayKey + '_copy', JSON.stringify(rCopy.filter(x => normalizeText(x.word) !== key)));
       
+      // 同步清理当前内存队列
+      currentQueue = currentQueue.filter(w => normalizeText(w.word) !== key);
+      sessionMistakes = sessionMistakes.filter(w => normalizeText(w.word) !== key);
+
       saveData(); renderBubbleWall(); updateGroupDropdown();
       showToast("已将该词移出错题记录");
   };
@@ -1053,8 +1058,8 @@
       reader.readAsText(file); e.target.value = "";
   };
 
-  document.getElementById("btnTravel").onclick = () => { if (activeWord) location.href = `eudic://dict/${activeWord.word}`; };
-  document.getElementById("btnErrorTravel").onclick = () => { if (selectedErrorWord) location.href = `eudic://dict/${selectedErrorWord.word}`; };
+  document.getElementById("btnTravel").onclick = () => { if (activeWord) location.href = `eudic://dict/${encodeURIComponent(activeWord.word)}`; };
+  document.getElementById("btnErrorTravel").onclick = () => { if (selectedErrorWord) location.href = `eudic://dict/${encodeURIComponent(selectedErrorWord.word)}`; };
 
   loadData(); switchPage('drill');
 </script>
