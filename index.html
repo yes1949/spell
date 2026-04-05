@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>记忆原型 Final V6.4</title>
+  <title>记忆原型 Final V6.5</title>
   <style>
     :root {
       --primary: #5ac8fa;
@@ -386,7 +386,7 @@
         <button class="bottom-btn" id="btnTravel" style="background:var(--primary); box-shadow:0 3px 8px rgba(90,200,250,0.2)">🚀 穿越</button>
       </div>
       
-      <div class="version-display">Version: 6.4 </div>
+      <div class="version-display">Version: 6.5</div>
     </div>
 
     <div id="page-input" class="page">
@@ -646,6 +646,7 @@
     if (isReviewMode) {
         const todayKey = getTodayKey();
         let list = JSON.parse(localStorage.getItem(todayKey) || '[]');
+        // 注意：这里不再从 _copy 里剔除，保留副本的完整性
         localStorage.setItem(todayKey, JSON.stringify(list.filter(w => normalizeText(w.word) !== key)));
     } else if (!isRetryMode) {
         if (currentGroupName === GRP_ALL_WORDS && allWordsQueue) {
@@ -674,6 +675,7 @@
       const todayKey = getTodayKey();
       let rList = JSON.parse(localStorage.getItem(todayKey) || '[]');
       let rCopy = JSON.parse(localStorage.getItem(todayKey + '_copy') || '[]');
+      // 彻底删除时，同时更新主列表和副本列表
       localStorage.setItem(todayKey, JSON.stringify(rList.filter(x => normalizeText(x.word) !== key)));
       localStorage.setItem(todayKey + '_copy', JSON.stringify(rCopy.filter(x => normalizeText(x.word) !== key)));
       
@@ -747,9 +749,10 @@
     const todayStr = getTodayStr();
     const todayKey = getTodayKey();
     
-    // 直接读取缓存队列长度，杜绝状态不一致
-    const reviewQueue = JSON.parse(localStorage.getItem(todayKey) || '[]');
-    const dueCount = reviewQueue.length;
+    // 【修改点1、2、3】使用 _copy 队列的长度作为徽标显示数字
+    // 这样只要没点击彻底删除，数字就不会随拼写正确而减少，且有新错题时会增加。
+    const reviewCopyQueue = JSON.parse(localStorage.getItem(todayKey + '_copy') || '[]');
+    const dueCount = reviewCopyQueue.length;
 
     const countSpan = document.getElementById("reviewCount");
     countSpan.style.display = dueCount > 0 ? "inline" : "none";
@@ -780,15 +783,27 @@
 
   document.getElementById("btnSmartReview").onclick = () => {
     sessionMistakes = []; sessionMistakeSet.clear(); isRetryMode = false;
-    const stored = JSON.parse(localStorage.getItem(getTodayKey()) || '[]');
-    if (stored.length > 0) { currentQueue = stored; } 
-    else {
+    const todayKey = getTodayKey();
+    let stored = JSON.parse(localStorage.getItem(todayKey) || '[]');
+    let storedCopy = JSON.parse(localStorage.getItem(todayKey + '_copy') || '[]');
+
+    if (stored.length > 0) { 
+        // 还有未复习完的单词，继续复习
+        currentQueue = stored; 
+    } else if (storedCopy.length > 0) {
+        // 【修改点4】当前复习队列已空（复习完了），但副本有数据，将副本复制回主队列，重新开始
+        localStorage.setItem(todayKey, JSON.stringify(storedCopy));
+        currentQueue = JSON.parse(JSON.stringify(storedCopy));
+        showToast("重新开始今日复习！");
+    } else {
+        // 队列和副本都没数据（兜底）
         const due = calcDueWords();
         if (due.length === 0) { document.getElementById("definitionDisplay").textContent = "今日暂无复习"; return; }
-        localStorage.setItem(getTodayKey(), JSON.stringify(due));
-        localStorage.setItem(getTodayKey() + '_copy', JSON.stringify(due));
+        localStorage.setItem(todayKey, JSON.stringify(due));
+        localStorage.setItem(todayKey + '_copy', JSON.stringify(due));
         currentQueue = due;
     }
+    
     isReviewMode = true; currentGroupName = "今日复习"; updateGroupDropdown(); activeWord = null; pickNextWord();
   };
 
@@ -853,9 +868,24 @@
 
   document.getElementById("btnCopyToday").onclick = () => {
       const todayStr = getTodayStr();
-      const todayWords = errorBook.filter(item => item.lastMistakeDate === todayStr).map(item => `${item.word}！。`);
-      if (todayWords.length === 0) { showToast("今日暂无错题记录！"); return; }
-      copyToClipboard(todayWords.join(""), "已复制今日错题！");
+      const todayErrors = errorBook.filter(item => item.lastMistakeDate === todayStr);
+      
+      if (todayErrors.length === 0) { showToast("今日暂无错题记录！"); return; }
+      
+      // 【修改点5】不仅复制，还把状态切换为“今日错题”组的拼写复习
+      const todayWordsText = todayErrors.map(item => `${item.word}！。`).join("");
+      copyToClipboard(todayWordsText, "已复制并开启今日错题复习！");
+
+      isReviewMode = false;
+      isRetryMode = false;
+      sessionMistakes = [];
+      sessionMistakeSet.clear();
+      currentGroupName = GRP_TODAY_ERRORS;
+      currentQueue = [...todayErrors];
+      
+      updateGroupDropdown();
+      activeWord = null;
+      pickNextWord();
   };
 
   document.getElementById("btnErrorCopyAll").onclick = () => {
@@ -934,12 +964,11 @@
     divider.disabled = true; divider.textContent = "---------";
     sel.appendChild(divider);
     
-    const todayErrCount = errorBook.filter(w => w.lastMistakeDate === getTodayStr()).length;
     const allWordsCount = Object.keys(masterDict).length;
     
+    // 【修改点5】移除了固定的“今日错题”分组显示
     const fixGroups = [
         { name: GRP_ALL_ERRORS, text: `全部错题 (${errorBook.length})` },
-        { name: GRP_TODAY_ERRORS, text: `今日错题 (${todayErrCount})` },
         { name: GRP_ALL_WORDS, text: `所有单词 (${allWordsCount})` }
     ];
     
@@ -950,7 +979,17 @@
     });
 
     if (isReviewMode) { lab.textContent = currentGroupName || "复习中"; sel.value = ""; } 
-    else if (currentGroupName) { sel.value = currentGroupName; lab.textContent = currentGroupName.length > 5 ? currentGroupName.substring(0,4)+'..' : currentGroupName; }
+    else if (currentGroupName) {
+        // 由于隐藏了今日错题的选项卡，若此时处于该组下，手动塞入隐藏标签维系页面逻辑
+        if (currentGroupName === GRP_TODAY_ERRORS) {
+            const tempOpt = document.createElement("option");
+            tempOpt.value = GRP_TODAY_ERRORS; tempOpt.textContent = "今日错题";
+            tempOpt.style.display = "none";
+            sel.appendChild(tempOpt);
+        }
+        sel.value = currentGroupName; 
+        lab.textContent = currentGroupName.length > 5 ? currentGroupName.substring(0,4)+'..' : currentGroupName; 
+    }
     else { lab.textContent = "选择"; }
   }
 
@@ -1011,6 +1050,7 @@
       const todayKey = getTodayKey();
       let rList = JSON.parse(localStorage.getItem(todayKey) || '[]');
       let rCopy = JSON.parse(localStorage.getItem(todayKey + '_copy') || '[]');
+      // 彻底删除错题时，同步更新主列表和副本列表
       localStorage.setItem(todayKey, JSON.stringify(rList.filter(x => normalizeText(x.word) !== key)));
       localStorage.setItem(todayKey + '_copy', JSON.stringify(rCopy.filter(x => normalizeText(x.word) !== key)));
       
